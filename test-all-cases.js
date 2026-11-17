@@ -29,7 +29,7 @@ try {
   const manifest = JSON.parse(manifestRaw);
 
   assert(manifest.manifest_version === 3, 'Manifest is valid MV3', `version ${manifest.manifest_version}`);
-  assert(manifest.version === '3.3.0', 'Version matches 3.3.0', manifest.version);
+  assert(manifest.version === '3.4.0', 'Version matches 3.4.0', manifest.version);
   assert(manifest.options_ui && manifest.options_ui.page === 'options.html', 'Options UI page configured', manifest.options_ui.page);
   assert(manifest.content_scripts && manifest.content_scripts[0].all_frames === true, 'Content script runs in all_frames for iframe support');
 
@@ -141,15 +141,18 @@ const FS_CHROMA = extractShader(contentCode, 'FS_CHROMA_RECONSTRUCT');
 const FS_TEMPORAL = extractShader(contentCode, 'FS_TEMPORAL_STABILITY');
 const FS_LINE = extractShader(contentCode, 'FS_LINE_ENHANCE');
 const FS_BLOOM = extractShader(contentCode, 'FS_BLOOM');
+const FS_GRAIN = extractShader(contentCode, 'FS_FILM_GRAIN');
 
 assert(VS_QUAD && VS_QUAD.includes('gl_Position'), 'VS_QUAD shader defined & valid', `${VS_QUAD.length} chars`);
 assert(FS_SPLIT && FS_SPLIT.includes('uSplitX'), 'FS_SPLIT (A/B Comparison) shader valid', `${FS_SPLIT.length} chars`);
 assert(FS_CAS && FS_CAS.includes('applyVibrance') && FS_CAS.includes('uSharpness'), 'FS_CAS (FidelityFX CAS + Vibrance) shader valid', `${FS_CAS.length} chars`);
+assert(FS_CAS && FS_CAS.includes('clampSpecular') && FS_CAS.includes('uClampHighlights'), 'FS_CAS Anime4K Highlight Clamping (>0.88 specular compression) verified');
 assert(FS_BICUBIC && FS_BICUBIC.includes('sampleBicubic'), 'FS_BICUBIC Catmull-Rom shader valid', `${FS_BICUBIC.length} chars`);
 assert(FS_CHROMA && FS_CHROMA.includes('rgb2yuv') && FS_CHROMA.includes('yuv2rgb'), 'FS_CHROMA_RECONSTRUCT (YUV420p Chroma Fix) shader valid', `${FS_CHROMA.length} chars`);
 assert(FS_TEMPORAL && FS_TEMPORAL.includes('uMotionThresh') && FS_TEMPORAL.includes('uBlend'), 'FS_TEMPORAL_STABILITY (Anti-Flicker) shader valid', `${FS_TEMPORAL.length} chars`);
 assert(FS_LINE && FS_LINE.includes('uLineDarken') && FS_LINE.includes('uLineThin'), 'FS_LINE_ENHANCE (Line Art Shaper) shader valid', `${FS_LINE.length} chars`);
 assert(FS_BLOOM && FS_BLOOM.includes('uBloomStrength'), 'FS_BLOOM (Cinema Diffusion) shader valid', `${FS_BLOOM.length} chars`);
+assert(FS_GRAIN && FS_GRAIN.includes('uGrainStrength') && FS_GRAIN.includes('uTime'), 'FS_FILM_GRAIN (Procedural Film Grain) shader valid', `${FS_GRAIN.length} chars`);
 
 // ── TEST SUITE 3: Anime4K Engine Passes & Presets ─────────────────────────────
 console.log('\n[Suite 3] Anime4K Engine & Preset Chains');
@@ -224,6 +227,13 @@ assert(contentCode.includes('.isLastPass = !cfg.splitScreen'), 'isLastPass dynam
 
 // Check snapshot capability
 assert(contentCode.includes('take4KSnapshot'), '4K Snapshot wallpaper export implemented');
+assert(contentCode.includes('ClipboardItem') && contentCode.includes('📸 4K Снимок скопирован в буфер! (Ctrl+V)'), '4K Snapshot direct clipboard copy implemented');
+
+// Check selective whitelist guard
+assert(contentCode.includes('function isSiteAllowed()') && contentCode.includes('allowedHosts:'), 'Selective site whitelist guard implemented in content.js');
+
+// Check in-player mode switching & quick menu flyout
+assert(contentCode.includes('__au_quick_menu') && contentCode.includes('__au_widget_mode_btn'), 'PlayerWidget: In-player Mode switching badge & Glassmorphic Quick Menu flyout');
 
 // ── TEST SUITE 5: Script Syntax Validation ────────────────────────────────────
 console.log('\n[Suite 5] JavaScript Syntax Check on All Modules');
@@ -285,6 +295,19 @@ try {
   assert(popJs.includes('enableLineEnhance: true') && popJs.includes('batterySaver: true'), 'popup.js: DEFAULTS registered');
   assert(popJs.includes('navigator.getBattery'), 'popup.js: navigator.getBattery API detection');
   assert(popJs.includes('$chipLineEnhance.addEventListener'), 'popup.js: quick chip event listeners wired');
+
+  // Whitelist & 2026 Shaders (Film Grain & Highlight Clamping)
+  assert(bkg.includes("siteMode: 'whitelist'") && bkg.includes('animelib.org'), 'background.js: siteMode whitelist & allowedHosts registered');
+  assert(bkg.includes('enableFilmGrain: true') && bkg.includes('grainStrength: 0.035'), 'background.js: Film Grain defaults registered');
+  assert(bkg.includes('enableHighlightClamp: true'), 'background.js: Highlight Clamping default registered');
+  assert(optHtml.includes('id="checkEnableFilmGrain"') && optHtml.includes('id="rangeGrainStrength"') && optHtml.includes('id="valGrainStrength"'), 'options.html: Film Grain card controls');
+  assert(optHtml.includes('id="checkEnableHighlightClamp"'), 'options.html: Highlight Clamping toggle');
+  assert(optHtml.includes('id="inputNewHost"') && optHtml.includes('id="btnAddHost"') && optHtml.includes('id="hostsContainer"'), 'options.html: Whitelist management controls');
+  assert(optJs.includes('$checkEnableFilmGrain') && optJs.includes('$checkEnableHighlightClamp') && optJs.includes('renderHostsList'), 'options.js: Film Grain, Highlight Clamp & Whitelist wired');
+  assert(popHtml.includes('id="btnSiteActivation"') && popHtml.includes('id="siteActivationDesc"'), 'popup.html: Redesigned Site Card activation controls');
+  assert(popHtml.includes('id="chipGrain"') && popHtml.includes('id="chipHighlightClamp"'), 'popup.html: Quick chips for Film Grain & Highlight Clamp');
+  assert(popJs.includes('$btnSiteActivation') && popJs.includes('isHostAllowed'), 'popup.js: Whitelist selective activation logic');
+  assert(popJs.includes('$chipGrain') && popJs.includes('$chipHighlightClamp'), 'popup.js: Quick chips event listeners wired');
 } catch (err) {
   assert(false, 'UI & Settings validation', err.message);
 }

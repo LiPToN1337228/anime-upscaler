@@ -28,10 +28,29 @@
     bloomStrength: 0.15,
     batterySaver: true,
     genrePreset: 'auto',
+    siteMode: 'whitelist',
+    allowedHosts: [
+      'animelib.org',
+      'shikimori.one',
+      'shikimori.me',
+      'jut.su',
+      'animego.org',
+      'anilibria.tv',
+      'crunchyroll.com',
+      'miruro.tv',
+      'miruro.online',
+      'yummyanime.tv'
+    ],
+    enableFilmGrain: true,
+    grainStrength: 0.035,
+    enableHighlightClamp: true,
     hosts: {}
   };
 
   const $siteHost = document.getElementById('siteHost');
+  const $siteStatusPill = document.getElementById('siteStatusPill');
+  const $btnSiteActivation = document.getElementById('btnSiteActivation');
+  const $siteActivationDesc = document.getElementById('siteActivationDesc');
   const $btnSiteToggle = document.getElementById('btnSiteToggle');
   const $btnMaster = document.getElementById('btnMaster');
   const $btnMasterText = document.getElementById('btnMasterText');
@@ -40,13 +59,19 @@
   const $checkSplit = document.getElementById('checkSplit');
   const $checkHud = document.getElementById('checkHud');
 
-  // Quick Shaders (Line Shaper & Bloom)
+  // Quick Shaders (Line Shaper, Bloom, Film Grain, Highlight Clamp)
   const $chipLineEnhance = document.getElementById('chipLineEnhance');
   const $checkLineEnhance = document.getElementById('checkLineEnhance');
   const $badgeLineEnhance = document.getElementById('badgeLineEnhance');
   const $chipBloom = document.getElementById('chipBloom');
   const $checkBloom = document.getElementById('checkBloom');
   const $badgeBloom = document.getElementById('badgeBloom');
+  const $chipGrain = document.getElementById('chipGrain');
+  const $checkGrain = document.getElementById('checkGrain');
+  const $badgeGrain = document.getElementById('badgeGrain');
+  const $chipHighlightClamp = document.getElementById('chipHighlightClamp');
+  const $checkHighlightClamp = document.getElementById('checkHighlightClamp');
+  const $badgeHighlightClamp = document.getElementById('badgeHighlightClamp');
 
   const $telRes = document.getElementById('telRes');
   const $telFps = document.getElementById('telFps');
@@ -127,9 +152,23 @@
   let activeTabId = null;
   let cfg = { ...DEFAULTS };
 
+  function isHostAllowed(host, list) {
+    if (!host || !Array.isArray(list)) return false;
+    const clean = host.toLowerCase().replace(/^www\./, '');
+    return list.some(item => {
+      const it = item.toLowerCase().replace(/^www\./, '');
+      return clean === it || clean.endsWith('.' + it);
+    });
+  }
+
   const isGlobalOn = () => cfg.enabled !== false;
+  const isSiteAllowed = () => {
+    if (cfg.siteMode !== 'whitelist') return true;
+    const allowed = Array.isArray(cfg.allowedHosts) ? cfg.allowedHosts : DEFAULTS.allowedHosts;
+    return isHostAllowed(currentHost, allowed);
+  };
   const isSiteOff = () => !!(cfg.hosts && cfg.hosts[currentHost] && cfg.hosts[currentHost].off);
-  const isActiveHere = () => isGlobalOn() && !isSiteOff();
+  const isActiveHere = () => isGlobalOn() && isSiteAllowed() && !isSiteOff();
 
   function saveConfig(patch) {
     cfg = { ...cfg, ...patch };
@@ -187,16 +226,60 @@
   }
 
   function render() {
-    // 1. Site info
+    // 1. Site info & Activation Button
     if (currentHost) {
       $siteHost.textContent = currentHost;
-      const off = isSiteOff();
-      $btnSiteToggle.textContent = off ? 'Включить здесь' : 'Выключить здесь';
-      $btnSiteToggle.classList.toggle('off', off);
-      $btnSiteToggle.disabled = !isGlobalOn();
+      const allowed = Array.isArray(cfg.allowedHosts) ? cfg.allowedHosts : DEFAULTS.allowedHosts;
+      const isAllowed = isHostAllowed(currentHost, allowed);
+
+      if ($btnSiteActivation) {
+        $btnSiteActivation.disabled = false;
+        if (isAllowed) {
+          $btnSiteActivation.className = 'btn-site-activation active';
+          $btnSiteActivation.innerHTML = '<span>✔</span><span>АКТИВНО НА ЭТОМ САЙТЕ</span>';
+          if ($siteStatusPill) {
+            $siteStatusPill.textContent = 'РАЗРЕШЕН';
+            $siteStatusPill.className = 'site-status-pill active';
+          }
+          if ($siteActivationDesc) {
+            $siteActivationDesc.textContent = 'Кнопка в плеере и апскейлер включены. Нажмите, чтобы отключить на этом домене.';
+          }
+        } else {
+          $btnSiteActivation.className = 'btn-site-activation inactive';
+          $btnSiteActivation.innerHTML = '<span>＋</span><span>АКТИВИРОВАТЬ НА ЭТОМ САЙТЕ</span>';
+          if ($siteStatusPill) {
+            $siteStatusPill.textContent = 'СКРЫТ';
+            $siteStatusPill.className = 'site-status-pill inactive';
+          }
+          if ($siteActivationDesc) {
+            $siteActivationDesc.textContent = 'Кнопка в плеере скрыта на этом сайте. Нажмите, чтобы включить.';
+          }
+        }
+      }
+
+      if ($btnSiteToggle) {
+        const off = isSiteOff();
+        $btnSiteToggle.textContent = off ? 'Включить здесь' : 'Выключить здесь';
+        $btnSiteToggle.classList.toggle('off', off);
+        $btnSiteToggle.disabled = !isGlobalOn();
+      }
     } else {
       $siteHost.textContent = 'Служебная вкладка';
-      $btnSiteToggle.disabled = true;
+      if ($siteStatusPill) {
+        $siteStatusPill.textContent = '–';
+        $siteStatusPill.className = 'site-status-pill';
+      }
+      if ($btnSiteActivation) {
+        $btnSiteActivation.className = 'btn-site-activation';
+        $btnSiteActivation.innerHTML = '<span>—</span><span>СЛУЖЕБНАЯ СТРАНИЦА</span>';
+        $btnSiteActivation.disabled = true;
+      }
+      if ($siteActivationDesc) {
+        $siteActivationDesc.textContent = 'Недоступно для служебных страниц браузера.';
+      }
+      if ($btnSiteToggle) {
+        $btnSiteToggle.disabled = true;
+      }
     }
 
     // 2. Master Switch
@@ -220,7 +303,7 @@
     $checkSplit.checked = !!cfg.splitScreen;
     $checkHud.checked = !!cfg.showHud;
 
-    // 5. Quick Shaders (Line Shaper & Bloom)
+    // 5. Quick Shaders (Line Shaper, Bloom, Film Grain, Highlight Clamp)
     const isLineOn = cfg.enableLineEnhance !== false;
     if ($chipLineEnhance) $chipLineEnhance.classList.toggle('active', isLineOn);
     if ($checkLineEnhance) $checkLineEnhance.checked = isLineOn;
@@ -234,6 +317,16 @@
     if ($checkBloom) $checkBloom.checked = isBloomOn;
     if ($badgeBloom) $badgeBloom.textContent = isBloomOn ? 'ВКЛ' : 'ВЫКЛ';
 
+    const isGrainOn = cfg.enableFilmGrain !== false;
+    if ($chipGrain) $chipGrain.classList.toggle('active', isGrainOn);
+    if ($checkGrain) $checkGrain.checked = isGrainOn;
+    if ($badgeGrain) $badgeGrain.textContent = isGrainOn ? 'ВКЛ' : 'ВЫКЛ';
+
+    const isClampOn = cfg.enableHighlightClamp !== false;
+    if ($chipHighlightClamp) $chipHighlightClamp.classList.toggle('active', isClampOn);
+    if ($checkHighlightClamp) $checkHighlightClamp.checked = isClampOn;
+    if ($badgeHighlightClamp) $badgeHighlightClamp.textContent = isClampOn ? 'ВКЛ' : 'ВЫКЛ';
+
     queryTabStatus();
   }
 
@@ -242,16 +335,40 @@
     saveConfig({ enabled: !isGlobalOn() });
   });
 
-  $btnSiteToggle.addEventListener('click', () => {
-    if (!currentHost) return;
-    const hosts = { ...(cfg.hosts || {}) };
-    if (isSiteOff()) {
-      delete hosts[currentHost];
-    } else {
-      hosts[currentHost] = { ...(hosts[currentHost] || {}), off: true };
-    }
-    saveConfig({ hosts });
-  });
+  // Whitelist Activation Button Toggle
+  if ($btnSiteActivation) {
+    $btnSiteActivation.addEventListener('click', () => {
+      if (!currentHost) return;
+      const cleanHost = currentHost.toLowerCase().replace(/^www\./, '');
+      let list = Array.isArray(cfg.allowedHosts) ? [...cfg.allowedHosts] : [...DEFAULTS.allowedHosts];
+      const isAllowed = isHostAllowed(currentHost, list);
+
+      if (isAllowed) {
+        list = list.filter(item => {
+          const it = item.toLowerCase().replace(/^www\./, '');
+          return !(cleanHost === it || cleanHost.endsWith('.' + it) || it.endsWith('.' + cleanHost));
+        });
+      } else {
+        if (!list.some(item => item.toLowerCase().replace(/^www\./, '') === cleanHost)) {
+          list.push(cleanHost);
+        }
+      }
+      saveConfig({ allowedHosts: list });
+    });
+  }
+
+  if ($btnSiteToggle) {
+    $btnSiteToggle.addEventListener('click', () => {
+      if (!currentHost) return;
+      const hosts = { ...(cfg.hosts || {}) };
+      if (isSiteOff()) {
+        delete hosts[currentHost];
+      } else {
+        hosts[currentHost] = { ...(hosts[currentHost] || {}), off: true };
+      }
+      saveConfig({ hosts });
+    });
+  }
 
   $modeCards.forEach((card) => {
     card.addEventListener('click', () => {
@@ -299,6 +416,32 @@
     $checkBloom.addEventListener('change', (e) => {
       e.stopPropagation();
       saveConfig({ enableBloom: $checkBloom.checked });
+    });
+  }
+
+  if ($chipGrain) {
+    $chipGrain.addEventListener('click', (e) => {
+      if (e.target === $checkGrain) return;
+      saveConfig({ enableFilmGrain: !(cfg.enableFilmGrain !== false) });
+    });
+  }
+  if ($checkGrain) {
+    $checkGrain.addEventListener('change', (e) => {
+      e.stopPropagation();
+      saveConfig({ enableFilmGrain: $checkGrain.checked });
+    });
+  }
+
+  if ($chipHighlightClamp) {
+    $chipHighlightClamp.addEventListener('click', (e) => {
+      if (e.target === $checkHighlightClamp) return;
+      saveConfig({ enableHighlightClamp: !(cfg.enableHighlightClamp !== false) });
+    });
+  }
+  if ($checkHighlightClamp) {
+    $checkHighlightClamp.addEventListener('change', (e) => {
+      e.stopPropagation();
+      saveConfig({ enableHighlightClamp: $checkHighlightClamp.checked });
     });
   }
 

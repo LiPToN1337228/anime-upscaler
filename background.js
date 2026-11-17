@@ -29,6 +29,22 @@ const DEFAULTS = {
   bloomStrength: 0.15,
   batterySaver: true,
   genrePreset: 'auto',
+  siteMode: 'whitelist',
+  allowedHosts: [
+    'animelib.org',
+    'shikimori.one',
+    'shikimori.me',
+    'jut.su',
+    'animego.org',
+    'anilibria.tv',
+    'crunchyroll.com',
+    'miruro.tv',
+    'miruro.online',
+    'yummyanime.tv'
+  ],
+  enableFilmGrain: true,
+  grainStrength: 0.035,
+  enableHighlightClamp: true,
   hosts: {}
 };
 
@@ -49,6 +65,17 @@ async function getSiteStatus(url) {
 
   const data = await chrome.storage.local.get(DEFAULTS);
   if (data.enabled === false) return false;
+
+  if (data.siteMode === 'whitelist') {
+    const list = Array.isArray(data.allowedHosts) ? data.allowedHosts : DEFAULTS.allowedHosts;
+    const cleanHost = host.toLowerCase().replace(/^www\./, '');
+    const isAllowed = list.some(item => {
+      const it = item.toLowerCase().replace(/^www\./, '');
+      return cleanHost === it || cleanHost.endsWith('.' + it);
+    });
+    if (!isAllowed) return false;
+  }
+
   const h = data.hosts && data.hosts[host];
   return !(h && h.off);
 }

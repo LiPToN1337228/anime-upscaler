@@ -61,39 +61,125 @@
   }
   .gpu-dot { width: 5px; height: 5px; border-radius: 50%; background: #34d399; box-shadow: 0 0 6px #34d399; }
 
-  /* Site Context */
-  .site-bar {
+  /* Site Activation Card (Whitelist Control) */
+  .site-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px;
+    margin-bottom: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+  }
+  .site-header {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    background: var(--bg-card);
-    border: 1px solid var(--border);
-    border-radius: 7px;
-    padding: 6px 10px;
-    margin-bottom: 10px;
+    gap: 8px;
+  }
+  .site-info {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+  }
+  .site-globe-icon {
+    font-size: 13px;
+    line-height: 1;
+    color: var(--cyan);
   }
   .site-host {
-    font-size: 11.5px;
-    font-weight: 500;
-    color: var(--text-muted);
-    max-width: 190px;
+    font-size: 12px;
+    font-weight: 700;
+    color: #f1f5f9;
+    max-width: 210px;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+    letter-spacing: 0.2px;
   }
-  .btn-site-toggle {
-    font-size: 10.5px;
-    font-weight: 600;
-    padding: 3px 7px;
-    border-radius: 5px;
-    border: 1px solid var(--border);
-    background: #1f293d;
-    color: #cbd5e1;
+  .site-status-pill {
+    font: 700 9px ui-monospace, monospace;
+    padding: 2px 6px;
+    border-radius: 4px;
+    white-space: nowrap;
+    text-transform: uppercase;
+  }
+  .site-status-pill.active {
+    background: rgba(16, 185, 129, 0.18);
+    color: #34d399;
+    border: 1px solid rgba(16, 185, 129, 0.4);
+  }
+  .site-status-pill.inactive {
+    background: rgba(245, 158, 11, 0.15);
+    color: #fbbf24;
+    border: 1px solid rgba(245, 158, 11, 0.35);
+  }
+
+  .btn-site-activation {
+    width: 100%;
+    padding: 9px 8px;
+    border-radius: 7px;
     cursor: pointer;
-    transition: all 0.15s;
+    font: 700 12px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    letter-spacing: 0.3px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    border: 1.5px solid transparent;
   }
-  .btn-site-toggle:hover { background: #28354f; }
-  .btn-site-toggle.off { background: rgba(239, 68, 68, 0.15); color: #f87171; border-color: rgba(239, 68, 68, 0.3); }
+  .btn-site-activation.active {
+    background: rgba(16, 185, 129, 0.14);
+    border-color: #10b981;
+    color: #34d399;
+    box-shadow: 0 0 14px rgba(16, 185, 129, 0.25);
+  }
+  .btn-site-activation.active:hover {
+    background: rgba(16, 185, 129, 0.24);
+    box-shadow: 0 0 18px rgba(16, 185, 129, 0.38);
+    transform: translateY(-1px);
+  }
+  .btn-site-activation.inactive {
+    background: rgba(6, 182, 212, 0.12);
+    border-color: #06b6d4;
+    color: #38bdf8;
+    box-shadow: 0 0 10px rgba(6, 182, 212, 0.2);
+    animation: pulse-activation 2.6s infinite ease-in-out;
+  }
+  .btn-site-activation.inactive:hover {
+    background: rgba(6, 182, 212, 0.22);
+    box-shadow: 0 0 16px rgba(6, 182, 212, 0.4);
+    transform: translateY(-1px);
+  }
+  .btn-site-activation:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    animation: none;
+    transform: none;
+  }
+  @keyframes pulse-activation {
+    0%, 100% {
+      border-color: #06b6d4;
+      box-shadow: 0 0 8px rgba(6, 182, 212, 0.2);
+    }
+    50% {
+      border-color: #fbbf24;
+      box-shadow: 0 0 14px rgba(245, 158, 11, 0.32);
+      color: #fbbf24;
+    }
+  }
+
+  .site-activation-desc {
+    font-size: 10px;
+    line-height: 1.35;
+    color: var(--text-dim);
+    text-align: center;
+    padding: 0 2px;
+  }
 
   /* Master Switch */
   .btn-master {
@@ -354,7 +440,7 @@
       <div class="logo-icon">4K</div>
       <div>
         <div class="title">Anime UpScaler PRO</div>
-        <div class="ver">v3.3.0 · WebGL2 Neural</div>
+        <div class="ver">v3.4.0 · WebGL2 Neural</div>
       </div>
     </div>
     <div class="gpu-badge">
@@ -363,10 +449,21 @@
     </div>
   </div>
 
-  <!-- Site Context Bar -->
-  <div class="site-bar">
-    <div class="site-host" id="siteHost">Подключение…</div>
-    <button class="btn-site-toggle" id="btnSiteToggle">Только здесь</button>
+  <!-- Site Activation Card (Whitelist Control) -->
+  <div class="site-card">
+    <div class="site-header">
+      <div class="site-info">
+        <span class="site-globe-icon">🌐</span>
+        <span class="site-host" id="siteHost">Подключение…</span>
+      </div>
+      <span class="site-status-pill active" id="siteStatusPill">ПРОВЕРКА…</span>
+    </div>
+    <button class="btn-site-activation active" id="btnSiteActivation">
+      <span>✔</span><span>АКТИВНО НА ЭТОМ САЙТЕ</span>
+    </button>
+    <div class="site-activation-desc" id="siteActivationDesc">
+      Кнопка в плеере и апскейлер включены. Нажмите, чтобы отключить на этом домене.
+    </div>
   </div>
 
   <!-- Master Power Switch -->
@@ -508,6 +605,24 @@
         <span class="chip-name">Блум</span>
       </div>
       <span class="chip-badge" id="badgeBloom">ВЫКЛ</span>
+    </button>
+
+    <button type="button" class="quick-chip" id="chipGrain" title="Organic Film Grain & Cel Texture — Органическое кино-зерно">
+      <input type="checkbox" id="checkGrain" style="display:none;">
+      <div class="chip-main">
+        <span class="chip-icon">🎞</span>
+        <span class="chip-name">Зерно</span>
+      </div>
+      <span class="chip-badge" id="badgeGrain">ВКЛ</span>
+    </button>
+
+    <button type="button" class="quick-chip" id="chipHighlightClamp" title="Highlight Clamping — Защита от пересветов контуров">
+      <input type="checkbox" id="checkHighlightClamp" style="display:none;">
+      <div class="chip-main">
+        <span class="chip-icon">☀️</span>
+        <span class="chip-name">Защита</span>
+      </div>
+      <span class="chip-badge" id="badgeHighlightClamp">ВКЛ</span>
     </button>
   </div>
 

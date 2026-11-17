@@ -8,6 +8,19 @@
   const HOST = location.hostname || 'local';
   const DEFAULTS = {
     enabled: true,
+    siteMode: 'whitelist',
+    allowedHosts: [
+      'animelib.org',
+      'shikimori.one',
+      'shikimori.me',
+      'jut.su',
+      'animego.org',
+      'anilibria.tv',
+      'crunchyroll.com',
+      'miruro.tv',
+      'miruro.online',
+      'yummyanime.tv'
+    ],
     mode: 'godmode',          // default high-performance mode
     autoCeiling: 'godmode',
     splitScreen: false,
@@ -16,6 +29,9 @@
     hudPosition: 'bottom-left',
     strength: 0.7,
     enableCas: true,
+    enableHighlightClamp: true,
+    enableFilmGrain: false,
+    grainStrength: 0.035,
     enableDeband: true,
     enableVibrance: true,
     vibranceStrength: 0.18,
@@ -38,19 +54,19 @@
   };
 
   const MODE_LABELS = {
-    '1': 'Режим 1 (Денойз)',
-    '2': 'Режим 2 (2× Upscale)',
-    '3': 'Режим 3 (Upscale + Restore)',
-    '4': 'Режим 4 — AnimeSR ★',
-    '4-turbo': 'Режим 4 Turbo',
-    '5': 'Режим 5 (M-Heavy)',
-    'hq': 'HQ Кинематографичный',
-    'ultra': 'Ultra Master (L-Tier)',
-    'godmode': 'Supreme Godmode (50-Pass UL) 🚀',
-    'modern': 'Современное аниме (1080p Digital)',
-    'retro': 'Ретро аниме (90s-2000s)',
-    'auto': 'Авто-баланс',
-    'bicubic': 'Бикубик + CAS'
+    '1': 'Режим 1 (Денойз) ▾',
+    '2': 'Режим 2 (2× Upscale) ▾',
+    '3': 'Режим 3 (Upscale + Restore) ▾',
+    '4': '★ Режим 4 ▾',
+    '4-turbo': '⚡ 4 Turbo ▾',
+    '5': 'Режим 5 (M-Heavy) ▾',
+    'hq': '🎬 HQ Кино ▾',
+    'ultra': '💎 Ultra Master ▾',
+    'godmode': '🚀 Supreme Godmode ▾',
+    'modern': 'Современное аниме ▾',
+    'retro': 'Ретро аниме ▾',
+    'auto': '🤖 Авто-баланс ▾',
+    'bicubic': 'Бикубик + CAS ▾'
   };
 
   const MODE_PASS_NAMES = {
@@ -89,7 +105,19 @@
     } catch (e) {}
   }
 
+  function isSiteAllowed() {
+    if (cfg.hosts && cfg.hosts[HOST] && cfg.hosts[HOST].off === true) {
+      return false;
+    }
+    if (cfg.hosts && cfg.hosts[HOST] && cfg.hosts[HOST].allowed === true) {
+      return true;
+    }
+    const list = Array.isArray(cfg.allowedHosts) ? cfg.allowedHosts : DEFAULTS.allowedHosts;
+    return list.some(h => HOST === h || HOST.endsWith('.' + h));
+  }
+
   function isSiteActive() {
+    if (!isSiteAllowed()) return false;
     if (cfg.enabled === false) return false;
     const h = cfg.hosts && cfg.hosts[HOST];
     return !(h && h.off);
@@ -268,7 +296,7 @@
       fragColor = vec4(outColor, cur.a);
     }`;
 
-  // AMD FidelityFX CAS + Vibrance + Deband + Denoise Composite
+  // AMD FidelityFX CAS + Vibrance + Deband + Denoise Composite + Anime4K Highlight Clamping
   const FS_CAS = `#version 300 es
     precision highp float;
     in vec2 vUv;
@@ -278,6 +306,7 @@
     uniform float uVibrance;
     uniform float uDeband;
     uniform float uDenoise;
+    uniform float uClampHighlights;
     out vec4 fragColor;
 
     vec3 applyVibrance(vec3 col, float vib) {
@@ -330,6 +359,13 @@
       return c;
     }
 
+    // Anime4K Highlight Clamping: compress extreme specular values (>0.88)
+    vec3 clampSpecular(vec3 col) {
+      const float knee = 0.88;
+      vec3 over = max(col - vec3(knee), vec3(0.0));
+      return min(col, knee + over / (1.0 + over * 3.5));
+    }
+
     void main() {
       vec2 px = 1.0 / uTexSize;
       vec3 c = texture(uTex, vUv).rgb;
@@ -341,11 +377,23 @@
         c = applyDenoise(c, vUv, px, uDenoise);
       }
 
+      if (uClampHighlights > 0.5) {
+        c = clampSpecular(c);
+      }
+
       if (uSharpness > 0.01) {
         vec3 a = texture(uTex, vUv + vec2(-px.x, 0.0)).rgb;
         vec3 b = texture(uTex, vUv + vec2(px.x, 0.0)).rgb;
         vec3 c_ = texture(uTex, vUv + vec2(0.0, -px.y)).rgb;
         vec3 d = texture(uTex, vUv + vec2(0.0, px.y)).rgb;
+
+        if (uClampHighlights > 0.5) {
+          a = clampSpecular(a);
+          b = clampSpecular(b);
+          c_ = clampSpecular(c_);
+          d = clampSpecular(d);
+        }
+
         vec3 e = c;
 
         vec3 minC = min(e, min(min(a, b), min(c_, d)));
@@ -519,6 +567,46 @@
       fragColor = vec4(clamp(screenBlended, 0.0, 1.0), base.a);
     }`;
 
+  // Film Grain Shader (2026 Elite Procedural Animated Noise)
+  const FS_FILM_GRAIN = `#version 300 es
+    precision highp float;
+    in vec2 vUv;
+    uniform sampler2D uTex;
+    uniform vec2 uTexSize;
+    uniform float uTime;
+    uniform float uGrainStrength;
+    out vec4 fragColor;
+
+    float hash21(vec2 p, float s) {
+      vec3 p3 = fract(vec3(p.xyx) * vec3(0.1031, 0.1030, 0.0973));
+      p3 += dot(p3, p3.yzx + (33.33 + s));
+      return fract((p3.x + p3.y) * p3.z);
+    }
+
+    void main() {
+      vec4 baseColor = texture(uTex, vUv);
+      if (uGrainStrength <= 0.001) {
+        fragColor = baseColor;
+        return;
+      }
+
+      vec2 coord = vUv * uTexSize;
+
+      float n1 = hash21(coord, uTime * 60.0);
+      float n2 = hash21(coord + vec2(1.23, 3.45), uTime * 60.0 + 17.0);
+      float noise = (n1 + n2) * 0.5 - 0.5;
+
+      float luma = dot(baseColor.rgb, vec3(0.2126, 0.7152, 0.0722));
+      float shadowBoost = smoothstep(0.02, 0.25, luma);
+      float highlightFalloff = 1.0 - smoothstep(0.70, 0.96, luma);
+      float lumaMod = shadowBoost * highlightFalloff;
+
+      float grain = noise * uGrainStrength * 2.0 * lumaMod;
+      vec3 result = baseColor.rgb + vec3(grain);
+
+      fragColor = vec4(clamp(result, 0.0, 1.0), baseColor.a);
+    }`;
+
   function compileShader(gl, type, src) {
     const s = gl.createShader(type);
     gl.shaderSource(s, src); gl.compileShader(s);
@@ -579,6 +667,7 @@
       this.progTemporal    = null;
       this.progLineEnhance = null;
       this.progBloom       = null;
+      this.progFilmGrain   = null;
 
       this.historyTextures = null;
       this.historyFbos     = null;
@@ -654,6 +743,7 @@
       try { this.progTemporal    = createProgram(gl, VS_QUAD, FS_TEMPORAL_STABILITY); } catch(e) {}
       try { this.progLineEnhance = createProgram(gl, VS_QUAD, FS_LINE_ENHANCE);       } catch(e) {}
       try { this.progBloom       = createProgram(gl, VS_QUAD, FS_BLOOM);              } catch(e) {}
+      try { this.progFilmGrain   = createProgram(gl, VS_QUAD, FS_FILM_GRAIN);          } catch(e) {}
     }
 
     _onContextLost() {
@@ -678,6 +768,7 @@
       this.progTemporal = null;
       this.progLineEnhance = null;
       this.progBloom = null;
+      this.progFilmGrain = null;
     }
 
     _onContextRestored() {
@@ -1311,19 +1402,21 @@
           currentOutTex = targetTex;
         }
 
-        // ── Step 4: Post-Processing Pipeline (CAS + Line Enhance + Bloom) ──
+        // ── Step 4: Post-Processing Pipeline (CAS + Line Enhance + Bloom + Film Grain) ──
         const isModern = mode === 'modern';
         const isRetro  = mode === 'retro';
         const isCinema = mode === 'hq' || mode === 'godmode';
 
+        const enableClamp   = cfg.enableHighlightClamp !== false;
         const enableCas     = isModern || (!isRetro && cfg.enableCas !== false);
         const enableVib     = isModern || (!isRetro && cfg.enableVibrance !== false);
         const enableDeband  = isRetro  || (!isModern && cfg.enableDeband !== false);
         const enableDenoise = isRetro;
-        const needsCas      = !!(this.progCas && (enableCas || enableVib || enableDeband || enableDenoise));
+        const needsCas      = !!(this.progCas && (enableCas || enableVib || enableDeband || enableDenoise || enableClamp));
 
         const enableLine    = !!(this.progLineEnhance && cfg.enableLineEnhance !== false);
         const enableBloom   = !!(this.progBloom && ((cfg.enableBloom === true) || (isCinema && cfg.enableBloom !== false)));
+        const enableGrain   = !!(this.progFilmGrain && cfg.enableFilmGrain);
 
         const postPasses = [];
 
@@ -1346,11 +1439,13 @@
             const vibrance  = enableVib ? (Number(cfg.vibranceStrength) || 0.18) : 0.0;
             const deband    = enableDeband ? 1.0 : 0.0;
             const denoise   = enableDenoise ? 1.0 : 0.0;
+            const clampHigh = enableClamp ? 1.0 : 0.0;
 
             gl.uniform1f(gl.getUniformLocation(this.progCas, 'uSharpness'), sharpness);
             gl.uniform1f(gl.getUniformLocation(this.progCas, 'uVibrance'),  vibrance);
             gl.uniform1f(gl.getUniformLocation(this.progCas, 'uDeband'),    deband);
             gl.uniform1f(gl.getUniformLocation(this.progCas, 'uDenoise'),   denoise);
+            gl.uniform1f(gl.getUniformLocation(this.progCas, 'uClampHighlights'), clampHigh);
 
             gl.drawArrays(gl.TRIANGLES, 0, 6);
           });
@@ -1402,6 +1497,29 @@
           });
         }
 
+        if (enableGrain) {
+          postPasses.push((inTex, targetFbo) => {
+            gl.bindFramebuffer(gl.FRAMEBUFFER, targetFbo);
+            gl.viewport(0, 0, outW, outH);
+            gl.useProgram(this.progFilmGrain);
+            gl.bindBuffer(gl.ARRAY_BUFFER, this.quadBuf);
+            const aPos = gl.getAttribLocation(this.progFilmGrain, 'aPos');
+            gl.enableVertexAttribArray(aPos);
+            gl.vertexAttribPointer(aPos, 2, gl.FLOAT, false, 0, 0);
+
+            gl.activeTexture(gl.TEXTURE0);
+            gl.bindTexture(gl.TEXTURE_2D, inTex);
+            gl.uniform1i(gl.getUniformLocation(this.progFilmGrain, 'uTex'), 0);
+            gl.uniform2f(gl.getUniformLocation(this.progFilmGrain, 'uTexSize'), outW, outH);
+
+            const grainStrength = Math.min(0.10, Math.max(0.0, Number(cfg.grainStrength) || 0.035));
+            gl.uniform1f(gl.getUniformLocation(this.progFilmGrain, 'uGrainStrength'), grainStrength);
+            gl.uniform1f(gl.getUniformLocation(this.progFilmGrain, 'uTime'), (performance.now() * 0.001) % 1000.0);
+
+            gl.drawArrays(gl.TRIANGLES, 0, 6);
+          });
+        }
+
         if (postPasses.length > 0) {
           this._initPostBuffers(outW, outH);
           for (let i = 0; i < postPasses.length; i++) {
@@ -1433,6 +1551,7 @@
           gl.uniform1f(gl.getUniformLocation(this.progCas, 'uVibrance'),  0.0);
           gl.uniform1f(gl.getUniformLocation(this.progCas, 'uDeband'),    0.0);
           gl.uniform1f(gl.getUniformLocation(this.progCas, 'uDenoise'),   0.0);
+          gl.uniform1f(gl.getUniformLocation(this.progCas, 'uClampHighlights'), 0.0);
           gl.drawArrays(gl.TRIANGLES, 0, 6);
         }
 
@@ -1620,19 +1739,49 @@
       this._placeSplitFixed(r);
     }
 
-    // Capture current 4K Upscaled Frame to PNG Wallpaper
+    // Capture current 4K Upscaled Frame to PNG Wallpaper + Direct Clipboard Copy
     take4KSnapshot() {
       if (!this.canvas) return;
       try {
-        const dataUrl = this.canvas.toDataURL('image/png');
-        const a = document.createElement('a');
-        const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
-        a.download = `AnimeUpScaler_4K_${timestamp}.png`;
-        a.href = dataUrl;
-        document.body.appendChild(a);
-        a.click();
-        a.remove();
-        this.updateHUD('📸 4K Снимок сохранён!');
+        this.canvas.toBlob(blob => {
+          if (!blob) {
+            const dataUrl = this.canvas.toDataURL('image/png');
+            const a = document.createElement('a');
+            const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+            a.download = `AnimeUpScaler_4K_${timestamp}.png`;
+            a.href = dataUrl;
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            this.updateHUD('📸 4K Снимок сохранён!');
+            return;
+          }
+
+          // 1. File download
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+          a.download = `AnimeUpScaler_4K_${timestamp}.png`;
+          a.href = url;
+          document.body.appendChild(a);
+          a.click();
+          a.remove();
+          setTimeout(() => URL.revokeObjectURL(url), 5000);
+
+          // 2. Direct Clipboard Copy (PNG Blob)
+          if (navigator.clipboard && typeof ClipboardItem !== 'undefined') {
+            navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })])
+              .then(() => {
+                this.updateHUD('📸 4K Снимок скопирован в буфер! (Ctrl+V)');
+              })
+              .catch(err => {
+                console.warn('[AnimeUpScaler PRO] Clipboard copy failed:', err);
+                this.updateHUD('📸 4K Снимок сохранён!');
+              });
+          } else {
+            this.updateHUD('📸 4K Снимок сохранён!');
+          }
+        }, 'image/png');
       } catch (err) {
         console.warn('Snapshot failed:', err);
       }
@@ -1669,6 +1818,7 @@
           if (this.progCas)         this.gl.deleteProgram(this.progCas);
           if (this.progLineEnhance) this.gl.deleteProgram(this.progLineEnhance);
           if (this.progBloom)       this.gl.deleteProgram(this.progBloom);
+          if (this.progFilmGrain)   this.gl.deleteProgram(this.progFilmGrain);
           if (this.progSplit)       this.gl.deleteProgram(this.progSplit);
           if (this.progBicubic)     this.gl.deleteProgram(this.progBicubic);
           if (this.rawTexture)      this.gl.deleteTexture(this.rawTexture);
@@ -1686,8 +1836,16 @@
     constructor(video) {
       this.video = video;
       this.isCollapsed = !!cfg.widgetCollapsed;
+      this.isMenuOpen = false;
       this.autoHideTimer = null;
       this.isHoveringWidget = false;
+
+      this.btnAction = null;
+      this.btnMode = null;
+      this.btnSnapshot = null;
+      this.btnSettings = null;
+      this.btnCollapse = null;
+      this.quickMenu = null;
 
       this._initDOM();
       this._initAutoHiding();
@@ -1713,8 +1871,18 @@
         'transition:opacity 0.28s ease, transform 0.22s cubic-bezier(0.16,1,0.3,1), width 0.22s ease',
         'user-select:none',
         'opacity:0',
-        'pointer-events:none'
+        'pointer-events:none',
+        'white-space:nowrap'
       ].join(';');
+
+      // In collapsed mode: clicking the collapsed pill expands the widget!
+      w.addEventListener('click', (e) => {
+        if (this.isCollapsed) {
+          e.stopPropagation();
+          e.preventDefault();
+          this.toggleCollapse();
+        }
+      }, true);
 
       // 1. Main Action Button
       const btnAction = document.createElement('div');
@@ -1729,12 +1897,59 @@
         'transition:all 0.15s ease'
       ].join(';');
       btnAction.innerHTML = `<span style="font-size:14px">⚡</span><span>Улучшить</span>`;
+      btnAction.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (this.isCollapsed) return;
+        const proc = activeProcessors.get(this.video);
+        if (!proc) return;
+        if (proc.isOn) {
+          proc.stop();
+          this.updateState(false);
+          saveConfigPatch({ enabled: false });
+        } else {
+          proc.start();
+          this.updateState(true);
+          saveConfigPatch({ enabled: true });
+        }
+      });
       w.appendChild(btnAction);
       this.btnAction = btnAction;
 
-      // 2. 4K Snapshot Camera Button
+      // 2. Mode Badge Button
+      const btnMode = document.createElement('div');
+      btnMode.className = '__au_widget_mode_btn';
+      btnMode.title = 'Выбрать режим апскейла Anime UpScaler PRO';
+      btnMode.style.cssText = [
+        'display:flex', 'align-items:center', 'gap:4px',
+        'padding:6px 10px',
+        'background:rgba(255,255,255,0.08)',
+        'color:#e2e8f0', 'font:600 12px/1 system-ui,-apple-system,sans-serif',
+        'border-radius:18px', 'cursor:pointer',
+        'border:1px solid rgba(255,255,255,0.12)',
+        'transition:all 0.15s ease',
+        'white-space:nowrap'
+      ].join(';');
+      const curMode = getEffectiveMode();
+      btnMode.textContent = MODE_LABELS[curMode] || curMode;
+
+      btnMode.addEventListener('mouseenter', () => {
+        btnMode.style.background = 'rgba(255,255,255,0.16)';
+        btnMode.style.borderColor = 'rgba(255,255,255,0.25)';
+      });
+      btnMode.addEventListener('mouseleave', () => {
+        btnMode.style.background = 'rgba(255,255,255,0.08)';
+        btnMode.style.borderColor = 'rgba(255,255,255,0.12)';
+      });
+      btnMode.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this.toggleQuickMenu();
+      });
+      w.appendChild(btnMode);
+      this.btnMode = btnMode;
+
+      // 3. 4K Snapshot Camera Button
       const btnSnapshot = document.createElement('div');
-      btnSnapshot.title = '📸 Сохранить 4K кадр (Обои)';
+      btnSnapshot.title = '📸 Сохранить 4K кадр (Обои + Буфер)';
       btnSnapshot.style.cssText = [
         'width:26px', 'height:26px',
         'display:flex', 'align-items:center', 'justify-content:center',
@@ -1759,9 +1974,9 @@
       w.appendChild(btnSnapshot);
       this.btnSnapshot = btnSnapshot;
 
-      // 3. Settings Gear Button
+      // 4. Settings Gear Button (toggles Quick Menu)
       const btnSettings = document.createElement('div');
-      btnSettings.title = 'Детальные настройки Anime UpScaler PRO';
+      btnSettings.title = 'Быстрое меню и настройки Anime UpScaler PRO';
       btnSettings.style.cssText = [
         'width:26px', 'height:26px',
         'display:flex', 'align-items:center', 'justify-content:center',
@@ -1780,12 +1995,12 @@
       });
       btnSettings.addEventListener('click', (e) => {
         e.stopPropagation();
-        chrome.runtime.sendMessage({ op: 'OPEN_OPTIONS' });
+        this.toggleQuickMenu();
       });
       w.appendChild(btnSettings);
       this.btnSettings = btnSettings;
 
-      // 4. Collapse Toggle Chevron
+      // 5. Collapse Toggle Chevron
       const btnCollapse = document.createElement('div');
       btnCollapse.title = 'Свернуть в мини-иконку';
       btnCollapse.style.cssText = [
@@ -1806,21 +2021,8 @@
       w.appendChild(btnCollapse);
       this.btnCollapse = btnCollapse;
 
-      // Click on main button -> toggle upscaling
-      btnAction.addEventListener('click', (e) => {
-        e.stopPropagation();
-        const proc = activeProcessors.get(this.video);
-        if (!proc) return;
-        if (proc.isOn) {
-          proc.stop();
-          this.updateState(false);
-          saveConfigPatch({ enabled: false });
-        } else {
-          proc.start();
-          this.updateState(true);
-          saveConfigPatch({ enabled: true });
-        }
-      });
+      // 6. Quick Menu Flyout
+      this._initQuickMenu(w);
 
       // Hover on widget prevents auto-hiding
       w.addEventListener('mouseenter', () => {
@@ -1828,16 +2030,12 @@
         clearTimeout(this.autoHideTimer);
         w.style.opacity = '1';
         w.style.pointerEvents = 'auto';
-        if (this.isCollapsed) {
-          this._applyCollapseVisuals(false);
-        }
       });
       w.addEventListener('mouseleave', () => {
         this.isHoveringWidget = false;
-        if (this.isCollapsed) {
-          this._applyCollapseVisuals(true);
+        if (!this.isMenuOpen) {
+          this._armAutoHide();
         }
-        this._armAutoHide();
       });
 
       document.documentElement.appendChild(w);
@@ -1848,27 +2046,259 @@
       }
     }
 
+    _initQuickMenu(parentEl) {
+      const m = document.createElement('div');
+      m.className = '__au_quick_menu';
+      m.style.cssText = [
+        'position:absolute',
+        'top:calc(100% + 8px)',
+        'left:0',
+        'width:280px',
+        'background:rgba(12,18,28,0.96)',
+        'backdrop-filter:blur(16px)',
+        '-webkit-backdrop-filter:blur(16px)',
+        'border:1px solid rgba(255,255,255,0.16)',
+        'border-radius:16px',
+        'padding:10px',
+        'box-shadow:0 10px 36px rgba(0,0,0,0.7)',
+        'color:#e2e8f0',
+        'font:12px/1.4 system-ui,-apple-system,sans-serif',
+        'z-index:2147483647',
+        'user-select:none',
+        'display:none',
+        'box-sizing:border-box'
+      ].join(';');
+
+      m.addEventListener('click', (e) => {
+        e.stopPropagation();
+      });
+
+      parentEl.appendChild(m);
+      this.quickMenu = m;
+
+      this._onDocClick = (e) => {
+        if (this.isMenuOpen && !this.el.contains(e.target)) {
+          this.closeQuickMenu();
+        }
+      };
+      document.addEventListener('click', this._onDocClick);
+    }
+
+    renderQuickMenu() {
+      if (!this.quickMenu) return;
+      this.quickMenu.innerHTML = '';
+
+      const effectiveMode = getEffectiveMode();
+
+      // Section 1: Modes (1-click switching)
+      const headerModes = document.createElement('div');
+      headerModes.style.cssText = 'font-size:10px;font-weight:700;color:#94a3b8;letter-spacing:0.05em;text-transform:uppercase;margin-bottom:6px;padding:0 4px;';
+      headerModes.textContent = 'Режимы апскейла';
+      this.quickMenu.appendChild(headerModes);
+
+      const modesList = [
+        { id: 'godmode', label: '🚀 Supreme Godmode (50-Pass)' },
+        { id: 'ultra',   label: '💎 Ultra Master (L-Tier)' },
+        { id: 'hq',      label: '🎬 HQ Кино (RestoreM + UpscaleM)' },
+        { id: '4-turbo', label: '⚡ Режим 4 Turbo (Fast 3-Pass)' },
+        { id: '4',       label: '★ Режим 4 (Оригинал AnimeSR)' },
+        { id: 'auto',    label: '🤖 Умный Авто-баланс' }
+      ];
+
+      for (const m of modesList) {
+        const item = document.createElement('div');
+        const isActive = (effectiveMode === m.id);
+        item.style.cssText = [
+          'display:flex', 'align-items:center', 'justify-content:space-between',
+          'padding:6px 8px', 'border-radius:8px', 'cursor:pointer',
+          'font-size:12px', 'margin-bottom:3px', 'transition:all 0.15s ease',
+          isActive
+            ? 'background:rgba(245,158,11,0.2);border:1px solid rgba(245,158,11,0.5);color:#fbbf24;font-weight:600'
+            : 'background:rgba(255,255,255,0.03);border:1px solid transparent;color:#cbd5e1'
+        ].join(';');
+
+        item.innerHTML = `<span>${m.label}</span>${isActive ? '<span style="color:#fbbf24;font-weight:700">✓</span>' : ''}`;
+
+        item.addEventListener('mouseenter', () => {
+          if (!isActive) {
+            item.style.background = 'rgba(255,255,255,0.08)';
+            item.style.color = '#fff';
+          }
+        });
+        item.addEventListener('mouseleave', () => {
+          if (!isActive) {
+            item.style.background = 'rgba(255,255,255,0.03)';
+            item.style.color = '#cbd5e1';
+          }
+        });
+
+        item.addEventListener('click', () => {
+          saveConfigPatch({ mode: m.id });
+          cfg.mode = m.id;
+          applyAll();
+          this.renderQuickMenu();
+          const proc = activeProcessors.get(this.video);
+          this.updateState(proc && proc.isOn);
+        });
+
+        this.quickMenu.appendChild(item);
+      }
+
+      // Section 2: Quick Toggles
+      const headerToggles = document.createElement('div');
+      headerToggles.style.cssText = 'font-size:10px;font-weight:700;color:#94a3b8;letter-spacing:0.05em;text-transform:uppercase;margin-top:10px;margin-bottom:6px;padding:0 4px;';
+      headerToggles.textContent = 'Быстрые эффекты';
+      this.quickMenu.appendChild(headerToggles);
+
+      const togglesList = [
+        { key: 'enableFilmGrain',      label: '🎞 Пленочное зерно (Grain)' },
+        { key: 'enableHighlightClamp', label: '☀️ Защита пересветов (Clamp)', def: true },
+        { key: 'enableLineEnhance',    label: '✒️ Контуры (Line Shaper)',    def: true },
+        { key: 'enableBloom',          label: '✨ Блум (Bloom)' },
+        { key: 'splitScreen',          label: '🎮 Сравнение (Split-Screen)' }
+      ];
+
+      for (const t of togglesList) {
+        const item = document.createElement('div');
+        const isOn = (t.def === true) ? (cfg[t.key] !== false) : !!cfg[t.key];
+
+        item.style.cssText = [
+          'display:flex', 'align-items:center', 'justify-content:space-between',
+          'padding:5px 8px', 'border-radius:8px', 'cursor:pointer',
+          'font-size:12px', 'margin-bottom:3px', 'background:rgba(255,255,255,0.03)',
+          'color:#cbd5e1', 'transition:all 0.15s ease'
+        ].join(';');
+
+        const trackBg = isOn ? '#10b981' : 'rgba(255,255,255,0.18)';
+        const thumbLeft = isOn ? '15px' : '2px';
+
+        item.innerHTML = `
+          <span>${t.label}</span>
+          <div style="width:30px;height:17px;border-radius:9px;background:${trackBg};position:relative;transition:background 0.2s ease;">
+            <div style="width:13px;height:13px;border-radius:50%;background:#ffffff;position:absolute;top:2px;left:${thumbLeft};transition:left 0.2s ease;box-shadow:0 1px 3px rgba(0,0,0,0.4);"></div>
+          </div>
+        `;
+
+        item.addEventListener('mouseenter', () => {
+          item.style.background = 'rgba(255,255,255,0.07)';
+        });
+        item.addEventListener('mouseleave', () => {
+          item.style.background = 'rgba(255,255,255,0.03)';
+        });
+
+        item.addEventListener('click', () => {
+          const nextVal = !isOn;
+          saveConfigPatch({ [t.key]: nextVal });
+          applyAll();
+          this.renderQuickMenu();
+        });
+
+        this.quickMenu.appendChild(item);
+      }
+
+      // Section 3: Link to Full Settings
+      const footer = document.createElement('div');
+      footer.style.cssText = 'margin-top:8px;padding-top:8px;border-top:1px solid rgba(255,255,255,0.08);';
+
+      const btnFullSettings = document.createElement('div');
+      btnFullSettings.style.cssText = [
+        'display:flex', 'align-items:center', 'justify-content:center', 'gap:6px',
+        'padding:7px 10px', 'border-radius:10px',
+        'background:rgba(56,189,248,0.1)', 'border:1px solid rgba(56,189,248,0.25)',
+        'color:#38bdf8', 'font:600 12px/1 system-ui,-apple-system,sans-serif',
+        'cursor:pointer', 'transition:all 0.15s ease'
+      ].join(';');
+      btnFullSettings.innerHTML = '<span>Детальные настройки ↗</span>';
+
+      btnFullSettings.addEventListener('mouseenter', () => {
+        btnFullSettings.style.background = 'rgba(56,189,248,0.2)';
+        btnFullSettings.style.color = '#7dd3fc';
+      });
+      btnFullSettings.addEventListener('mouseleave', () => {
+        btnFullSettings.style.background = 'rgba(56,189,248,0.1)';
+        btnFullSettings.style.color = '#38bdf8';
+      });
+      btnFullSettings.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this.closeQuickMenu();
+        chrome.runtime.sendMessage({ op: 'OPEN_OPTIONS' });
+      });
+
+      footer.appendChild(btnFullSettings);
+      this.quickMenu.appendChild(footer);
+    }
+
+    toggleQuickMenu() {
+      if (this.isMenuOpen) {
+        this.closeQuickMenu();
+      } else {
+        this.openQuickMenu();
+      }
+    }
+
+    openQuickMenu() {
+      if (this.isCollapsed) {
+        this.isCollapsed = false;
+        saveConfigPatch({ widgetCollapsed: false });
+        this._applyCollapseVisuals(false);
+      }
+      this.isMenuOpen = true;
+      this.renderQuickMenu();
+
+      const rect = this.el.getBoundingClientRect();
+      if (rect.bottom + 420 > window.innerHeight && rect.top > 420) {
+        this.quickMenu.style.top = 'auto';
+        this.quickMenu.style.bottom = 'calc(100% + 8px)';
+      } else {
+        this.quickMenu.style.bottom = 'auto';
+        this.quickMenu.style.top = 'calc(100% + 8px)';
+      }
+
+      this.quickMenu.style.display = 'block';
+      this.el.style.opacity = '1';
+      this.el.style.pointerEvents = 'auto';
+      clearTimeout(this.autoHideTimer);
+    }
+
+    closeQuickMenu() {
+      this.isMenuOpen = false;
+      if (this.quickMenu) this.quickMenu.style.display = 'none';
+      this._armAutoHide();
+    }
+
     _applyCollapseVisuals(collapsed) {
       if (!this.el) return;
       if (collapsed) {
-        this.btnSnapshot.style.display = 'none';
-        this.btnSettings.style.display = 'none';
-        this.btnCollapse.style.display = 'none';
+        if (this.btnMode)     this.btnMode.style.display = 'none';
+        if (this.btnSnapshot) this.btnSnapshot.style.display = 'none';
+        if (this.btnSettings) this.btnSettings.style.display = 'none';
+        if (this.btnCollapse) this.btnCollapse.style.display = 'none';
+        if (this.quickMenu)   this.quickMenu.style.display = 'none';
+        this.isMenuOpen = false;
         this.btnAction.style.padding = '6px 10px';
-        this.btnAction.innerHTML = `<span style="font-size:14px">⚡</span>`;
+        const proc = activeProcessors.get(this.video);
+        const on = proc && proc.isOn;
+        this.btnAction.innerHTML = on
+          ? `<span style="font-size:14px">✨</span>`
+          : `<span style="font-size:14px">⚡</span>`;
         this.el.style.borderRadius = '50%';
         this.el.style.padding = '3px';
-        this.el.title = 'Нажмите или наведите, чтобы развернуть Anime UpScaler';
+        this.el.title = 'Нажмите, чтобы развернуть Anime UpScaler';
       } else {
-        this.btnSnapshot.style.display = 'flex';
-        this.btnSettings.style.display = 'flex';
-        this.btnCollapse.style.display = 'flex';
+        if (this.btnMode)     this.btnMode.style.display = 'flex';
+        if (this.btnSnapshot) this.btnSnapshot.style.display = 'flex';
+        if (this.btnSettings) this.btnSettings.style.display = 'flex';
+        if (this.btnCollapse) this.btnCollapse.style.display = 'flex';
         this.btnAction.style.padding = '6px 14px';
         const proc = activeProcessors.get(this.video);
         const on = proc && proc.isOn;
         this.btnAction.innerHTML = on
           ? `<span style="font-size:14px">✨</span><span>4K ON</span>`
           : `<span style="font-size:14px">⚡</span><span>Улучшить</span>`;
+        const mode = getEffectiveMode();
+        if (this.btnMode) {
+          this.btnMode.textContent = MODE_LABELS[mode] || mode;
+        }
         this.el.style.borderRadius = '24px';
         this.el.style.padding = '4px';
         this.el.title = '';
@@ -1882,6 +2312,10 @@
     }
 
     updateState(isOn) {
+      const mode = getEffectiveMode();
+      if (this.btnMode) {
+        this.btnMode.textContent = MODE_LABELS[mode] || mode;
+      }
       if (isOn) {
         this.btnAction.innerHTML = this.isCollapsed
           ? `<span style="font-size:14px">✨</span>`
@@ -1894,6 +2328,9 @@
           : `<span style="font-size:14px">⚡</span><span>Улучшить</span>`;
         this.btnAction.style.background = 'linear-gradient(135deg,#f59e0b,#d97706)';
         this.btnAction.style.boxShadow = '0 2px 14px rgba(245,158,11,0.4)';
+      }
+      if (this.isMenuOpen) {
+        this.renderQuickMenu();
       }
     }
 
@@ -1926,7 +2363,7 @@
     }
 
     hideUI() {
-      if (this.isHoveringWidget) return;
+      if (this.isHoveringWidget || this.isMenuOpen) return;
       if (!this.el) return;
       this.el.style.opacity = '0';
       this.el.style.pointerEvents = 'none';
@@ -1972,6 +2409,7 @@
     destroy() {
       if (this._trackRaf) cancelAnimationFrame(this._trackRaf);
       clearTimeout(this.autoHideTimer);
+      if (this._onDocClick) document.removeEventListener('click', this._onDocClick);
       if (this.el) this.el.remove();
     }
   }
@@ -1996,6 +2434,20 @@
   }
 
   function scanForVideos() {
+    if (!isSiteAllowed()) {
+      if (activeProcessors.size > 0 || playerWidgets.size > 0) {
+        for (const [video, proc] of activeProcessors.entries()) {
+          proc.destroy();
+        }
+        for (const [video, widget] of playerWidgets.entries()) {
+          widget.destroy();
+        }
+        activeProcessors.clear();
+        playerWidgets.clear();
+      }
+      return;
+    }
+
     const found = new Set();
     collectVideos(document, found);
 
@@ -2042,9 +2494,27 @@
   }
 
   function applyAll() {
+    if (!isSiteAllowed()) {
+      for (const [video, proc] of activeProcessors.entries()) {
+        proc.destroy();
+      }
+      for (const [video, widget] of playerWidgets.entries()) {
+        widget.destroy();
+      }
+      activeProcessors.clear();
+      playerWidgets.clear();
+      return;
+    }
+
+    scanForVideos();
+
     const active = isSiteActive();
     for (const [video, proc] of activeProcessors.entries()) {
-      const widget = playerWidgets.get(video);
+      let widget = playerWidgets.get(video);
+      if (!widget && cfg.buttonStyle !== 'hidden') {
+        widget = new PlayerWidget(video);
+        playerWidgets.set(video, widget);
+      }
       if (active) {
         if (!proc.isOn) proc.start();
         proc.rebuildPasses();
@@ -2070,8 +2540,13 @@
       }
       if (msg.op === 'TOGGLE_ACTIVE') {
         const h = { ...(cfg.hosts || {}) };
-        const off = !!(h[HOST] && h[HOST].off);
-        if (off) delete h[HOST]; else h[HOST] = { off: true };
+        const hostCfg = h[HOST] || {};
+        const isAllowed = isSiteAllowed();
+        if (isAllowed) {
+          h[HOST] = { ...hostCfg, off: true };
+        } else {
+          h[HOST] = { ...hostCfg, allowed: true, off: false };
+        }
         saveConfigPatch({ hosts: h });
         applyAll();
         sendResponse({ ok: true, active: isSiteActive() });

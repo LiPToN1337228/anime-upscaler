@@ -28,6 +28,22 @@
     bloomStrength: 0.15,
     batterySaver: true,
     genrePreset: 'auto',
+    siteMode: 'whitelist',
+    allowedHosts: [
+      'animelib.org',
+      'shikimori.one',
+      'shikimori.me',
+      'jut.su',
+      'animego.org',
+      'anilibria.tv',
+      'crunchyroll.com',
+      'miruro.tv',
+      'miruro.online',
+      'yummyanime.tv'
+    ],
+    enableFilmGrain: true,
+    grainStrength: 0.035,
+    enableHighlightClamp: true,
     hosts: {}
   };
 
@@ -38,6 +54,16 @@
   const $panels = Array.from(document.querySelectorAll('.panel'));
   const $modeCards = Array.from(document.querySelectorAll('.mode-card'));
   const $genreCards = Array.from(document.querySelectorAll('.genre-card'));
+
+  // Whitelist Elements
+  const $selectSiteMode = document.getElementById('selectSiteMode');
+  const $inputNewHost = document.getElementById('inputNewHost');
+  const $btnAddHost = document.getElementById('btnAddHost');
+  const $hostsContainer = document.getElementById('hostsContainer');
+  const $hostsCount = document.getElementById('hostsCount');
+  const $btnResetHosts = document.getElementById('btnResetHosts');
+
+  // Performance & Settings Elements
   const $checkSmartSync = document.getElementById('checkSmartSync');
   const $selectMaxRes = document.getElementById('selectMaxRes');
   const $checkEnableCas = document.getElementById('checkEnableCas');
@@ -56,6 +82,13 @@
   const $checkEnableBloom = document.getElementById('checkEnableBloom');
   const $rangeBloomStrength = document.getElementById('rangeBloomStrength');
   const $valBloomStrength = document.getElementById('valBloomStrength');
+
+  // Film Grain & Highlight Clamp Elements
+  const $checkEnableFilmGrain = document.getElementById('checkEnableFilmGrain');
+  const $rangeGrainStrength = document.getElementById('rangeGrainStrength');
+  const $valGrainStrength = document.getElementById('valGrainStrength');
+  const $checkEnableHighlightClamp = document.getElementById('checkEnableHighlightClamp');
+
   const $checkBatterySaver = document.getElementById('checkBatterySaver');
   const $selectButtonStyle = document.getElementById('selectButtonStyle');
   const $checkWidgetCollapsed = document.getElementById('checkWidgetCollapsed');
@@ -83,7 +116,10 @@
       $tabs.forEach(t => t.classList.remove('active'));
       $panels.forEach(p => p.classList.remove('active'));
       tab.classList.add('active');
-      const panel = document.getElementById(targetId);
+      let panel = document.getElementById(targetId);
+      if (!panel && (targetId === 'tab-sites' || targetId === 'tab-modes')) {
+        panel = document.getElementById('tab-modes') || document.getElementById('tab-sites');
+      }
       if (panel) panel.classList.add('active');
     });
   });
@@ -93,6 +129,71 @@
     chrome.storage.local.set(patch, () => {
       showToast('Настройки обновлены и синхронизированы');
     });
+  }
+
+  // Whitelist Management
+  function renderHostsList() {
+    if (!$hostsContainer) return;
+    $hostsContainer.innerHTML = '';
+    const hosts = Array.isArray(cfg.allowedHosts) ? cfg.allowedHosts : DEFAULTS.allowedHosts;
+    if ($hostsCount) $hostsCount.textContent = String(hosts.length);
+
+    if (hosts.length === 0) {
+      $hostsContainer.innerHTML = '<span style="color: #64748b; font-size: 12px; font-style: italic;">Список пуст. Добавьте сайт выше или включите через всплывающее окно.</span>';
+      return;
+    }
+
+    hosts.forEach(host => {
+      const pill = document.createElement('div');
+      pill.className = 'host-pill';
+
+      const name = document.createElement('span');
+      name.textContent = host;
+      pill.appendChild(name);
+
+      const btnRemove = document.createElement('button');
+      btnRemove.className = 'host-remove';
+      btnRemove.title = `Удалить ${host} из белого списка`;
+      btnRemove.innerHTML = '&times;';
+      btnRemove.addEventListener('click', (e) => {
+        e.stopPropagation();
+        removeHost(host);
+      });
+      pill.appendChild(btnRemove);
+
+      $hostsContainer.appendChild(pill);
+    });
+  }
+
+  function addHost(hostInput) {
+    if (!hostInput) return;
+    let clean = hostInput.trim().toLowerCase();
+    try {
+      if (clean.startsWith('http://') || clean.startsWith('https://')) {
+        clean = new URL(clean).hostname;
+      }
+    } catch (e) {}
+    clean = clean.replace(/^[a-z]+:\/\//i, '').replace(/\/.*$/, '').replace(/^www\./, '').trim();
+    if (!clean) return;
+
+    let list = Array.isArray(cfg.allowedHosts) ? [...cfg.allowedHosts] : [...DEFAULTS.allowedHosts];
+    if (list.includes(clean)) {
+      showToast(`Домен ${clean} уже есть в белом списке`);
+      return;
+    }
+    list.push(clean);
+    save({ allowedHosts: list });
+    renderHostsList();
+    if ($inputNewHost) $inputNewHost.value = '';
+    showToast(`Домен ${clean} добавлен в белый список`);
+  }
+
+  function removeHost(hostToRemove) {
+    let list = Array.isArray(cfg.allowedHosts) ? [...cfg.allowedHosts] : [...DEFAULTS.allowedHosts];
+    list = list.filter(h => h.toLowerCase() !== hostToRemove.toLowerCase());
+    save({ allowedHosts: list });
+    renderHostsList();
+    showToast(`Домен ${hostToRemove} удален из белого списка`);
   }
 
   function render() {
@@ -139,6 +240,21 @@
     if ($checkShowHud) $checkShowHud.checked = cfg.showHud !== false;
     if ($selectHudPosition) $selectHudPosition.value = cfg.hudPosition || 'bottom-left';
     if ($checkSplitScreen) $checkSplitScreen.checked = !!cfg.splitScreen;
+
+    // Whitelist & Site Mode
+    if ($selectSiteMode) $selectSiteMode.value = cfg.siteMode || 'whitelist';
+    renderHostsList();
+
+    // Film Grain & Cel Texture
+    if ($checkEnableFilmGrain) $checkEnableFilmGrain.checked = cfg.enableFilmGrain !== false;
+    if ($rangeGrainStrength) {
+      const gs = typeof cfg.grainStrength === 'number' ? cfg.grainStrength : 0.035;
+      $rangeGrainStrength.value = gs;
+      if ($valGrainStrength) $valGrainStrength.textContent = gs.toFixed(3);
+    }
+
+    // Highlight Clamping
+    if ($checkEnableHighlightClamp) $checkEnableHighlightClamp.checked = cfg.enableHighlightClamp !== false;
   }
 
   // Mode selection
@@ -249,6 +365,52 @@
   }
   if ($checkSplitScreen) {
     $checkSplitScreen.addEventListener('change', () => save({ splitScreen: $checkSplitScreen.checked }));
+  }
+
+  // Whitelist Event Listeners
+  if ($selectSiteMode) {
+    $selectSiteMode.addEventListener('change', () => save({ siteMode: $selectSiteMode.value }));
+  }
+  if ($btnAddHost) {
+    $btnAddHost.addEventListener('click', () => {
+      if ($inputNewHost) addHost($inputNewHost.value);
+    });
+  }
+  if ($inputNewHost) {
+    $inputNewHost.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        addHost($inputNewHost.value);
+      }
+    });
+  }
+  if ($btnResetHosts) {
+    $btnResetHosts.addEventListener('click', () => {
+      save({ allowedHosts: [...DEFAULTS.allowedHosts] });
+      renderHostsList();
+      showToast('Список сайтов сброшен к настройкам по умолчанию');
+    });
+  }
+
+  // Film Grain & Highlight Clamp Events
+  if ($checkEnableFilmGrain) {
+    $checkEnableFilmGrain.addEventListener('change', () => {
+      save({ enableFilmGrain: $checkEnableFilmGrain.checked });
+    });
+  }
+  if ($rangeGrainStrength) {
+    $rangeGrainStrength.addEventListener('input', () => {
+      const v = Number($rangeGrainStrength.value);
+      if ($valGrainStrength) $valGrainStrength.textContent = v.toFixed(3);
+    });
+    $rangeGrainStrength.addEventListener('change', () => {
+      save({ grainStrength: Number($rangeGrainStrength.value) });
+    });
+  }
+  if ($checkEnableHighlightClamp) {
+    $checkEnableHighlightClamp.addEventListener('change', () => {
+      save({ enableHighlightClamp: $checkEnableHighlightClamp.checked });
+    });
   }
 
   // Buttons
