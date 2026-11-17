@@ -1,0 +1,971 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Anime UpScaler PRO — Центр управления и настройки</title>
+<style>
+  :root {
+    color-scheme: dark;
+    --bg-base: #070a0f;
+    --bg-surface: #0e141f;
+    --bg-card: #141c2b;
+    --bg-card-hover: #1c273c;
+    --border: #222f46;
+    --border-accent: rgba(16, 185, 129, 0.4);
+    --primary: #10b981;
+    --primary-glow: rgba(16, 185, 129, 0.25);
+    --amber: #f59e0b;
+    --amber-glow: rgba(245, 158, 11, 0.25);
+    --cyan: #06b6d4;
+    --cyan-glow: rgba(6, 182, 212, 0.25);
+    --text-title: #ffffff;
+    --text-main: #e2e8f0;
+    --text-muted: #94a3b8;
+    --text-dim: #64748b;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg-base);
+    color: var(--text-main);
+    font: 14px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* Top Navigation Bar */
+  header {
+    background: rgba(14, 20, 31, 0.85);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--border);
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+
+  .nav-container {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 14px 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .brand {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .brand-logo {
+    width: 34px;
+    height: 34px;
+    border-radius: 9px;
+    background: linear-gradient(135deg, #10b981, #06b6d4);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 16px;
+    font-weight: 900;
+    color: #051419;
+    box-shadow: 0 0 16px var(--primary-glow);
+  }
+
+  .brand-title {
+    font-size: 17px;
+    font-weight: 700;
+    color: var(--text-title);
+    letter-spacing: 0.3px;
+  }
+
+  .brand-ver {
+    font-size: 11px;
+    padding: 2px 7px;
+    border-radius: 6px;
+    background: rgba(16, 185, 129, 0.12);
+    border: 1px solid rgba(16, 185, 129, 0.3);
+    color: #34d399;
+    font-family: ui-monospace, monospace;
+    font-weight: 600;
+  }
+
+  .header-badges {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .status-pill {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 12px;
+    border-radius: 20px;
+    background: rgba(16, 185, 129, 0.1);
+    border: 1px solid rgba(16, 185, 129, 0.3);
+    color: #34d399;
+    font-size: 12px;
+    font-weight: 600;
+  }
+
+  .status-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: #34d399;
+    box-shadow: 0 0 8px #34d399;
+  }
+
+  /* Main Layout */
+  .layout {
+    max-width: 1100px;
+    margin: 28px auto;
+    padding: 0 24px 60px;
+    display: grid;
+    grid-template-columns: 240px 1fr;
+    gap: 32px;
+    flex: 1;
+    width: 100%;
+  }
+
+  /* Sidebar Tabs */
+  .sidebar {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .tab-btn {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 14px;
+    border-radius: 8px;
+    background: transparent;
+    border: 1px solid transparent;
+    color: var(--text-muted);
+    font-size: 13.5px;
+    font-weight: 500;
+    cursor: pointer;
+    text-align: left;
+    transition: all 0.15s ease;
+  }
+
+  .tab-btn:hover {
+    background: var(--bg-card);
+    color: var(--text-main);
+  }
+
+  .tab-btn.active {
+    background: var(--bg-card);
+    border-color: var(--border);
+    color: #fff;
+    font-weight: 600;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.25);
+  }
+
+  .tab-btn.active .tab-icon {
+    color: var(--primary);
+  }
+
+  .tab-icon {
+    font-size: 16px;
+    width: 20px;
+    display: inline-block;
+    text-align: center;
+  }
+
+  /* Content Panel */
+  .panel {
+    display: none;
+    flex-direction: column;
+    gap: 24px;
+  }
+
+  .panel.active {
+    display: flex;
+  }
+
+  .panel-header {
+    margin-bottom: 6px;
+  }
+
+  .panel-title {
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--text-title);
+    margin-bottom: 4px;
+  }
+
+  .panel-desc {
+    font-size: 13px;
+    color: var(--text-muted);
+  }
+
+  /* Cards */
+  .card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.3);
+  }
+
+  .card-title {
+    font-size: 15px;
+    font-weight: 600;
+    color: #fff;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  /* Mode Selection Grid */
+  .mode-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    gap: 12px;
+  }
+
+  .mode-card {
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    border-radius: 9px;
+    padding: 14px;
+    cursor: pointer;
+    transition: all 0.18s ease;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    position: relative;
+  }
+
+  .mode-card:hover {
+    border-color: #3b82f6;
+    background: var(--bg-card-hover);
+    transform: translateY(-2px);
+  }
+
+  .mode-card.selected {
+    border-color: var(--primary);
+    background: rgba(16, 185, 129, 0.08);
+    box-shadow: 0 0 16px var(--primary-glow);
+  }
+
+  .mode-card-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .mode-name {
+    font-weight: 700;
+    font-size: 13.5px;
+    color: #fff;
+  }
+
+  .mode-tag {
+    font-size: 10px;
+    font-weight: 700;
+    padding: 2px 6px;
+    border-radius: 4px;
+    text-transform: uppercase;
+  }
+
+  .tag-star { background: rgba(245, 158, 11, 0.2); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.4); }
+  .tag-speed { background: rgba(56, 189, 248, 0.2); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.4); }
+  .tag-heavy { background: rgba(168, 85, 247, 0.2); color: #c084fc; border: 1px solid rgba(168, 85, 247, 0.4); }
+
+  .mode-info {
+    font-size: 11.5px;
+    color: var(--text-muted);
+    line-height: 1.4;
+  }
+
+  .mode-chain {
+    font-family: ui-monospace, monospace;
+    font-size: 10.5px;
+    color: var(--cyan);
+    margin-top: 4px;
+    background: rgba(0,0,0,0.3);
+    padding: 3px 6px;
+    border-radius: 4px;
+  }
+
+  /* Form Controls */
+  .control-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 0;
+    border-bottom: 1px solid rgba(255,255,255,0.05);
+  }
+
+  .control-row:last-child {
+    border-bottom: none;
+    padding-bottom: 0;
+  }
+
+  .control-info {
+    max-width: 70%;
+  }
+
+  .control-label {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-main);
+    margin-bottom: 3px;
+  }
+
+  .control-desc {
+    font-size: 12px;
+    color: var(--text-muted);
+  }
+
+  /* Toggle Switch */
+  .switch {
+    position: relative;
+    display: inline-block;
+    width: 44px;
+    height: 24px;
+  }
+
+  .switch input { opacity: 0; width: 0; height: 0; }
+
+  .slider {
+    position: absolute;
+    cursor: pointer;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: #27354a;
+    transition: .2s;
+    border-radius: 24px;
+  }
+
+  .slider:before {
+    position: absolute;
+    content: "";
+    height: 18px;
+    width: 18px;
+    left: 3px;
+    bottom: 3px;
+    background: #fff;
+    transition: .2s;
+    border-radius: 50%;
+  }
+
+  input:checked + .slider {
+    background: var(--primary);
+    box-shadow: 0 0 10px var(--primary-glow);
+  }
+
+  input:checked + .slider:before {
+    transform: translateX(20px);
+  }
+
+  /* Range Sliders */
+  .range-container {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  input[type=range] {
+    -webkit-appearance: none;
+    width: 140px;
+    height: 6px;
+    border-radius: 3px;
+    background: #27354a;
+    outline: none;
+  }
+
+  input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: var(--primary);
+    cursor: pointer;
+    box-shadow: 0 0 8px var(--primary-glow);
+  }
+
+  .range-value {
+    font-family: ui-monospace, monospace;
+    font-size: 12px;
+    font-weight: 600;
+    color: #34d399;
+    min-width: 38px;
+    text-align: right;
+  }
+
+  /* Select Dropdowns */
+  select {
+    background: #192336;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: #f1f5f9;
+    padding: 6px 12px;
+    font-size: 13px;
+    outline: none;
+    cursor: pointer;
+  }
+
+  select:focus {
+    border-color: var(--primary);
+  }
+
+  /* Hotkey Table */
+  .hotkey-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+  }
+
+  .hotkey-table th {
+    text-align: left;
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--border);
+    color: var(--text-dim);
+    font-weight: 600;
+    font-size: 11px;
+    text-transform: uppercase;
+  }
+
+  .hotkey-table td {
+    padding: 10px 12px;
+    border-bottom: 1px solid rgba(255,255,255,0.04);
+  }
+
+  kbd {
+    background: #1e283b;
+    border: 1px solid #334155;
+    border-radius: 5px;
+    padding: 3px 8px;
+    font-family: ui-monospace, monospace;
+    font-size: 11.5px;
+    color: #38bdf8;
+    box-shadow: 0 2px 0 rgba(0,0,0,0.4);
+  }
+
+  /* Diagnostics Table */
+  .diag-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 12px;
+  }
+
+  .diag-item {
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .diag-label {
+    font-size: 11px;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    font-weight: 600;
+  }
+
+  .diag-val {
+    font-size: 14px;
+    font-weight: 700;
+    color: #fff;
+    font-family: ui-monospace, monospace;
+  }
+
+  /* Toast Notification */
+  .toast {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    background: rgba(14, 20, 31, 0.95);
+    border: 1px solid var(--primary);
+    box-shadow: 0 8px 30px rgba(0,0,0,0.7), 0 0 16px var(--primary-glow);
+    border-radius: 9px;
+    padding: 12px 18px;
+    color: #fff;
+    font-size: 13.5px;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    opacity: 0;
+    transform: translateY(12px);
+    pointer-events: none;
+    transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+    z-index: 1000;
+  }
+
+  .toast.show {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  .btn-accent {
+    background: linear-gradient(135deg, #10b981, #059669);
+    border: none;
+    color: #fff;
+    padding: 7px 16px;
+    border-radius: 6px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    box-shadow: 0 2px 10px var(--primary-glow);
+    transition: all 0.15s;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .btn-accent:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 14px var(--primary-glow);
+  }
+
+  .btn-secondary {
+    background: #1e283b;
+    border: 1px solid var(--border);
+    color: #cbd5e1;
+    padding: 7px 14px;
+    border-radius: 6px;
+    font-size: 12.5px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+
+  .btn-secondary:hover {
+    background: #27354a;
+    color: #fff;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="nav-container">
+    <div class="brand">
+      <div class="brand-logo">⚡</div>
+      <div>
+        <span class="brand-title">Anime UpScaler PRO</span>
+      </div>
+      <span class="brand-ver">v3.1.0</span>
+    </div>
+    <div class="header-badges">
+      <div class="status-pill">
+        <span class="status-dot"></span>
+        <span id="gpuStatus">GPU Акселерация</span>
+      </div>
+    </div>
+  </div>
+</header>
+
+<div class="layout">
+  <!-- Sidebar -->
+  <aside class="sidebar">
+    <button class="tab-btn active" data-tab="tab-modes">
+      <span class="tab-icon">🧠</span> Режимы и Нейросети
+    </button>
+    <button class="tab-btn" data-tab="tab-performance">
+      <span class="tab-icon">⚡</span> Производительность &amp; GPU
+    </button>
+    <button class="tab-btn" data-tab="tab-postprocess">
+      <span class="tab-icon">🎨</span> Фильтры 2026 (CAS)
+    </button>
+    <button class="tab-btn" data-tab="tab-overlay">
+      <span class="tab-icon">🎛</span> Плеер и Сворачивание
+    </button>
+    <button class="tab-btn" data-tab="tab-hotkeys">
+      <span class="tab-icon">⌨️</span> Горячие клавиши
+    </button>
+    <button class="tab-btn" data-tab="tab-diagnostics">
+      <span class="tab-icon">🩺</span> Диагностика WebGL2
+    </button>
+  </aside>
+
+  <!-- Main Content Panels -->
+  <main class="content">
+
+    <!-- 1. MODES & NEURAL PASSES -->
+    <section class="panel active" id="tab-modes">
+      <div class="panel-header">
+        <h2 class="panel-title">Нейросетевые алгоритмы Anime4K / AnimeSR</h2>
+        <p class="panel-desc">Выберите базовый режим обработки. Все цепочки шейдеров скомпилированы в WebGL2 с FP16 точностью.</p>
+      </div>
+
+      <div class="card">
+        <div class="card-title">✨ Активный профиль по умолчанию</div>
+        <div class="mode-grid" id="modeGrid">
+          
+          <div class="mode-card" data-mode="godmode" style="border-color: rgba(245, 158, 11, 0.5); background: rgba(245, 158, 11, 0.06);">
+            <div class="mode-card-header">
+              <span class="mode-name" style="color:#fbbf24;">🚀 Supreme Godmode (50-Pass UL)</span>
+              <span class="mode-tag tag-star">ULTRA</span>
+            </div>
+            <div class="mode-info">Абсолютный флагман для мощных дискретных видеокарт! 25 нейронных сверток RestoreUL + 25 UpscaleUL. Ультимативная реконструкция контуров студийного уровня.</div>
+            <div class="mode-chain">RestoreUL (25 проходов) → UpscaleUL (25 проходов)</div>
+          </div>
+
+          <div class="mode-card" data-mode="4">
+            <div class="mode-card-header">
+              <span class="mode-name">Режим 4 — AnimeSR</span>
+              <span class="mode-tag tag-star">★ ХИТ</span>
+            </div>
+            <div class="mode-info">Оригинальная премиум-цепочка из расширения AnimeSR. Максимальная пластичность и четкость аниме-линий.</div>
+            <div class="mode-chain">RestoreS → UpscaleS → RestoreS → UpscaleS</div>
+          </div>
+
+          <div class="mode-card" data-mode="4-turbo">
+            <div class="mode-card-header">
+              <span class="mode-name">Режим 4 Turbo</span>
+              <span class="mode-tag tag-speed">60 FPS</span>
+            </div>
+            <div class="mode-info">Облегченная 3-проходная версия Режима 4. Идеально для 60fps видео и экономии ресурсов.</div>
+            <div class="mode-chain">RestoreS → UpscaleS → RestoreS</div>
+          </div>
+
+          <div class="mode-card" data-mode="5">
+            <div class="mode-card-header">
+              <span class="mode-name">Режим 5 — M-Heavy</span>
+              <span class="mode-tag tag-heavy">MAX LINE</span>
+            </div>
+            <div class="mode-info">Увеличенное окно свертки нейросети (M-ядра). Усиленный денойз и ультра-толстые контуры.</div>
+            <div class="mode-chain">RestoreM → UpscaleM → RestoreM → UpscaleM</div>
+          </div>
+
+          <div class="mode-card" data-mode="hq">
+            <div class="mode-card-header">
+              <span class="mode-name">HQ Кинематографичный</span>
+              <span class="mode-tag tag-speed">2X</span>
+            </div>
+            <div class="mode-info">Баланс кинематографичной мягкости и 2x апскейла. Минимальная нагрузка на GPU.</div>
+            <div class="mode-chain">RestoreM → UpscaleM</div>
+          </div>
+
+          <div class="mode-card" data-mode="ultra">
+            <div class="mode-card-header">
+              <span class="mode-name">Ultra Master (L-Tier)</span>
+              <span class="mode-tag tag-heavy">L-PASS</span>
+            </div>
+            <div class="mode-info">Тяжелый проход RestoreL. Восстанавливает мельчайшие текстуры даже из сильно сжатого 720p потока.</div>
+            <div class="mode-chain">RestoreL → UpscaleM</div>
+          </div>
+
+          <div class="mode-card" data-mode="auto">
+            <div class="mode-card-header">
+              <span class="mode-name">Авто-баланс (Adaptive)</span>
+              <span class="mode-tag tag-speed">AUTO</span>
+            </div>
+            <div class="mode-info">Динамически повышает или понижает мощность шейдеров под реальную частоту кадров экрана.</div>
+            <div class="mode-chain">Динамический тюнинг пресетов</div>
+          </div>
+
+          <div class="mode-card" data-mode="bicubic">
+            <div class="mode-card-header">
+              <span class="mode-name">Бикубик + CAS</span>
+              <span class="mode-tag tag-speed">ECO</span>
+            </div>
+            <div class="mode-info">Аппаратный Catmull-Rom бикубический апскейл с адаптивной резкостью. Нагрузка GPU &lt; 2%.</div>
+            <div class="mode-chain">Catmull-Rom + Sharpness</div>
+          </div>
+
+        </div>
+      </div>
+    </section>
+
+    <!-- 2. PERFORMANCE & SYNC -->
+    <section class="panel" id="tab-performance">
+      <div class="panel-header">
+        <h2 class="panel-title">Оптимизация производительности и GPU</h2>
+        <p class="panel-desc">Специфические настройки энергопотребления, синхронизации кадров и буферов видеокарты.</p>
+      </div>
+
+      <div class="card">
+        <div class="card-title">🚀 Кадровая синхронизация (Zero-Idle)</div>
+
+        <div class="control-row">
+          <div class="control-info">
+            <div class="control-label">Синхронизация по кадрам видеопотока (Smart RVFC)</div>
+            <div class="control-desc">Рендерит строго тогда, когда декодер выдает новый видеокадр (23.976/24/30 FPS). На 144Hz/240Hz мониторах видеокарта не тратит энергию на повторный прогон одного и того же кадра. Снижает нагрев и нагрузку на видеокарту на 65%!</div>
+          </div>
+          <label class="switch">
+            <input type="checkbox" id="checkSmartSync" checked>
+            <span class="slider"></span>
+          </label>
+        </div>
+
+        <div class="control-row">
+          <div class="control-info">
+            <div class="control-label">Пауза при остановке видео</div>
+            <div class="control-desc">Мгновенно останавливает цикл рендеринга при нажатии паузы. GPU полностью переходит в состояние покоя.</div>
+          </div>
+          <label class="switch">
+            <input type="checkbox" id="checkPauseOnIdle" checked disabled>
+            <span class="slider"></span>
+          </label>
+        </div>
+
+        <div class="control-row">
+          <div class="control-info">
+            <div class="control-label">Лимит целевого разрешения рендера</div>
+            <div class="control-desc">Ограничивает максимальный размер итогового буфера, предотвращая избыточное выделение видеопамяти при двойном апскейле 1080p до 5K.</div>
+          </div>
+          <select id="selectMaxRes">
+            <option value="native">Без ограничений (Native 4K/5K)</option>
+            <option value="2160p">4K UHD (3840×2160 макс)</option>
+            <option value="1440p">2K QHD (2560×1440 макс)</option>
+            <option value="1080p">FHD (1920×1080)</option>
+          </select>
+        </div>
+      </div>
+    </section>
+
+    <!-- 3. POST-PROCESSING (CAS & DEBAND) -->
+    <section class="panel" id="tab-postprocess">
+      <div class="panel-header">
+        <h2 class="panel-title">Постобработка конца 2026 года</h2>
+        <p class="panel-desc">Фильтры финальной доводки изображения: адаптивная резкость контуров и устранение ступеней цвета.</p>
+      </div>
+
+      <div class="card">
+        <div class="card-title">🔍 Фильтры четкости и цветовых переходов</div>
+
+        <div class="control-row">
+          <div class="control-info">
+            <div class="control-label">AMD FidelityFX CAS (Contrast Adaptive Sharpening)</div>
+            <div class="control-desc">Адаптивный алгоритм локального контраста. Делает тонкие линии туши и глаз бритвенно-четкими, полностью исключая белые ореолы (ringing halos).</div>
+          </div>
+          <label class="switch">
+            <input type="checkbox" id="checkEnableCas" checked>
+            <span class="slider"></span>
+          </label>
+        </div>
+
+        <div class="control-row">
+          <div class="control-info">
+            <div class="control-label">Сила резкости CAS</div>
+            <div class="control-desc">Уровень микроконтраста линий. Рекомендуется от 0.6 до 0.8 для чистого четкого аниме.</div>
+          </div>
+          <div class="range-container">
+            <input type="range" id="rangeStrength" min="0.1" max="1.0" step="0.05" value="0.7">
+            <span class="range-value" id="valStrength">0.70</span>
+          </div>
+        </div>
+
+        <div class="control-row">
+          <div class="control-info">
+            <div class="control-label">Smart Debanding (Устранение полос в небе и градиентах)</div>
+            <div class="control-desc">Сглаживает 8-битные полосы сжатия в небе, облаках и мягких тенях, предотвращая ошибочное подчеркивание артефактов видеопотока.</div>
+          </div>
+          <label class="switch">
+            <input type="checkbox" id="checkEnableDeband" checked>
+            <span class="slider"></span>
+          </label>
+        </div>
+
+        <div class="control-row">
+          <div class="control-info">
+            <div class="control-label">Anime Vibrance &amp; HDR Boost (Сочные цвета аниме)</div>
+            <div class="control-desc">Интеллектуальное усиление насыщенности волос, глаз и магии без искажения оттенков кожи и пересветов.</div>
+          </div>
+          <label class="switch">
+            <input type="checkbox" id="checkEnableVibrance" checked>
+            <span class="slider"></span>
+          </label>
+        </div>
+      </div>
+    </section>
+
+    <!-- 4. OVERLAY & COLLAPSE UI -->
+    <section class="panel" id="tab-overlay">
+      <div class="panel-header">
+        <h2 class="panel-title">Плеер, оверлей и удобное сворачивание</h2>
+        <p class="panel-desc">Настройте внешний вид элементов управления на видео, чтобы они не мешали просмотру аниме.</p>
+      </div>
+
+      <div class="card">
+        <div class="card-title">🎛 Виджет «⚡ Улучшить» на видео</div>
+
+        <div class="control-row">
+          <div class="control-info">
+            <div class="control-label">Автоскрытие при бездействии мыши</div>
+            <div class="control-desc">Плавно скрывает кнопку «⚡ Улучшить» и HUD телеметрию через 2.5 секунды после того, как мышь перестает двигаться (как нативные контролы плеера). При движении мыши сразу же появляется обратно!</div>
+          </div>
+          <label class="switch">
+            <input type="checkbox" id="checkAutoHideUI" checked>
+            <span class="slider"></span>
+          </label>
+        </div>
+
+        <div class="control-row">
+          <div class="control-info">
+            <div class="control-label">Стиль кнопки на видео</div>
+            <div class="control-desc">Выберите удобный для вас формат отображения кнопки.</div>
+          </div>
+          <select id="selectButtonStyle">
+            <option value="pill">Интерактивная капсула (Кнопка + ⚙️ + Свернуть)</option>
+            <option value="mini">Мини-иконка (Компактная круглая точка ⚡)</option>
+            <option value="hidden">Скрывать (Управление только горячими клавишами)</option>
+          </select>
+        </div>
+
+        <div class="control-row">
+          <div class="control-info">
+            <div class="control-label">Статус сворачивания по умолчанию</div>
+            <div class="control-desc">Если включено, виджет всегда будет свернут в маленькую аккуратную точку ⚡, пока вы не наведете на него курсор.</div>
+          </div>
+          <label class="switch">
+            <input type="checkbox" id="checkWidgetCollapsed">
+            <span class="slider"></span>
+          </label>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">📊 Информационная панель (HUD)</div>
+
+        <div class="control-row">
+          <div class="control-info">
+            <div class="control-label">Отображать оверлей HUD на видео</div>
+            <div class="control-desc">Показывает статус активного профиля, FPS, время рендеринга кадра (ms) и разрешение в реальном времени.</div>
+          </div>
+          <label class="switch">
+            <input type="checkbox" id="checkShowHud" checked>
+            <span class="slider"></span>
+          </label>
+        </div>
+
+        <div class="control-row">
+          <div class="control-info">
+            <div class="control-label">Позиция HUD в плеере</div>
+            <div class="control-desc">Угол расположения плашки телеметрии.</div>
+          </div>
+          <select id="selectHudPosition">
+            <option value="bottom-left">Левый нижний угол</option>
+            <option value="bottom-right">Правый нижний угол</option>
+            <option value="top-left">Левый верхний угол</option>
+            <option value="top-right">Правый верхний угол</option>
+          </select>
+        </div>
+
+        <div class="control-row">
+          <div class="control-info">
+            <div class="control-label">Сравнение: сплит-экран A/B (До / После)</div>
+            <div class="control-desc">Отображает интерактивную вертикальную полосу сравнения исходного видео и результата апскейла.</div>
+          </div>
+          <label class="switch">
+            <input type="checkbox" id="checkSplitScreen">
+            <span class="slider"></span>
+          </label>
+        </div>
+      </div>
+    </section>
+
+    <!-- 5. HOTKEYS -->
+    <section class="panel" id="tab-hotkeys">
+      <div class="panel-header">
+        <h2 class="panel-title">Горячие клавиши расширения</h2>
+        <p class="panel-desc">Быстрое управление апскейлером во время полноэкранного просмотра.</p>
+      </div>
+
+      <div class="card">
+        <table class="hotkey-table">
+          <thead>
+            <tr>
+              <th>Действие</th>
+              <th>Комбинация по умолчанию</th>
+              <th>Описание</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong>Включить / Выключить апскейл</strong></td>
+              <td><kbd>Alt</kbd> + <kbd>Shift</kbd> + <kbd>Q</kbd></td>
+              <td>Мгновенное переключение апскейлера на активном видео</td>
+            </tr>
+            <tr>
+              <td><strong>Телеметрия HUD</strong></td>
+              <td><kbd>Alt</kbd> + <kbd>Shift</kbd> + <kbd>F</kbd></td>
+              <td>Показать или скрыть плашку FPS / ms / разрешения</td>
+            </tr>
+            <tr>
+              <td><strong>Режим сравнения A/B</strong></td>
+              <td><kbd>Alt</kbd> + <kbd>Shift</kbd> + <kbd>S</kbd></td>
+              <td>Включить интерактивный разделитель До / После</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <div style="margin-top: 10px;">
+          <button class="btn-secondary" id="btnOpenShortcuts">⚙️ Изменить горячие клавиши в браузере</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- 6. DIAGNOSTICS -->
+    <section class="panel" id="tab-diagnostics">
+      <div class="panel-header">
+        <h2 class="panel-title">Диагностика WebGL2 и GPU видеокарты</h2>
+        <p class="panel-desc">Сведения о поддержке графических расширений и аппаратного ускорения в вашем браузере.</p>
+      </div>
+
+      <div class="card">
+        <div class="card-title">🩺 Аппаратный статус системы</div>
+        <div class="diag-grid">
+          <div class="diag-item">
+            <span class="diag-label">Контекст WebGL</span>
+            <span class="diag-val" id="diagGlVer">WebGL 2.0</span>
+          </div>
+          <div class="diag-item">
+            <span class="diag-label">Видеоадаптер (GPU)</span>
+            <span class="diag-val" id="diagRenderer" style="font-size:12px;">Проверка…</span>
+          </div>
+          <div class="diag-item">
+            <span class="diag-label">FP16 Render Target</span>
+            <span class="diag-val" id="diagFp16" style="color:#34d399">Поддерживается</span>
+          </div>
+          <div class="diag-item">
+            <span class="diag-label">Float Linear Filtering</span>
+            <span class="diag-val" id="diagFloatFilter" style="color:#34d399">Поддерживается</span>
+          </div>
+          <div class="diag-item">
+            <span class="diag-label">Smart RVFC Sync</span>
+            <span class="diag-val" id="diagRvfc" style="color:#34d399">Поддерживается</span>
+          </div>
+          <div class="diag-item">
+            <span class="diag-label">Max Texture Size</span>
+            <span class="diag-val" id="diagMaxTex">16384 px</span>
+          </div>
+        </div>
+
+        <div style="margin-top: 12px; display: flex; gap: 10px;">
+          <button class="btn-secondary" id="btnTestSelftest">🧪 Открыть интерактивный стресс-тест шейдеров</button>
+        </div>
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<!-- Toast notification -->
+<div class="toast" id="toast">
+  <span>✨</span>
+  <span id="toastMsg">Настройки сохранены и применены!</span>
+</div>
+
+<script src="options.js"></script>
+</body>
+</html>

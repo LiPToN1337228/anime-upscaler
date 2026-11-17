@@ -1,0 +1,396 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>Anime UpScaler PRO</title>
+<style>
+  :root {
+    color-scheme: dark;
+    --bg-main: #0c1017;
+    --bg-card: #151b26;
+    --bg-card-hover: #1c2433;
+    --border: #242f42;
+    --primary: #10b981;
+    --primary-glow: rgba(16, 185, 129, 0.25);
+    --cyan: #06b6d4;
+    --cyan-glow: rgba(6, 182, 212, 0.2);
+    --text-main: #f1f5f9;
+    --text-muted: #94a3b8;
+    --text-dim: #64748b;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    width: 350px;
+    padding: 14px;
+    font: 13px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: var(--bg-main);
+    color: var(--text-main);
+    user-select: none;
+  }
+
+  /* Header */
+  .header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 10px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--border);
+  }
+  .title-group { display: flex; align-items: center; gap: 7px; }
+  .logo-icon {
+    width: 22px; height: 22px; border-radius: 6px;
+    background: linear-gradient(135deg, #10b981, #06b6d4);
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 900; font-size: 11px; color: #041014;
+  }
+  .title { font-size: 14px; font-weight: 700; letter-spacing: 0.3px; color: #fff; }
+  .ver { font-size: 10px; color: var(--text-dim); }
+  .gpu-badge {
+    font: 600 9.5px ui-monospace, monospace;
+    background: rgba(16, 185, 129, 0.12);
+    color: #34d399;
+    border: 1px solid rgba(16, 185, 129, 0.3);
+    padding: 2px 6px;
+    border-radius: 5px;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+  .gpu-dot { width: 5px; height: 5px; border-radius: 50%; background: #34d399; box-shadow: 0 0 6px #34d399; }
+
+  /* Site Context */
+  .site-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 7px;
+    padding: 6px 10px;
+    margin-bottom: 10px;
+  }
+  .site-host {
+    font-size: 11.5px;
+    font-weight: 500;
+    color: var(--text-muted);
+    max-width: 190px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .btn-site-toggle {
+    font-size: 10.5px;
+    font-weight: 600;
+    padding: 3px 7px;
+    border-radius: 5px;
+    border: 1px solid var(--border);
+    background: #1f293d;
+    color: #cbd5e1;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .btn-site-toggle:hover { background: #28354f; }
+  .btn-site-toggle.off { background: rgba(239, 68, 68, 0.15); color: #f87171; border-color: rgba(239, 68, 68, 0.3); }
+
+  /* Master Switch */
+  .btn-master {
+    width: 100%;
+    padding: 11px;
+    border-radius: 9px;
+    border: 0;
+    cursor: pointer;
+    font: 700 13.5px inherit;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    color: #031510;
+    background: linear-gradient(135deg, #34d399, #10b981);
+    box-shadow: 0 4px 14px var(--primary-glow);
+    transition: all 0.2s;
+    margin-bottom: 12px;
+  }
+  .btn-master.off {
+    background: #1e2638;
+    color: #94a3b8;
+    box-shadow: none;
+    border: 1px solid var(--border);
+  }
+
+  /* Section Title */
+  .section-title {
+    font-size: 10.5px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    color: var(--text-dim);
+    margin: 8px 0 6px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  /* Mode Cards Grid */
+  .mode-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+    margin-bottom: 12px;
+  }
+  .mode-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 7px;
+    padding: 7px 8px;
+    cursor: pointer;
+    text-align: left;
+    transition: all 0.15s;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .mode-card:hover { background: var(--bg-card-hover); border-color: #3b4861; }
+  .mode-card.active {
+    background: rgba(16, 185, 129, 0.12);
+    border-color: #10b981;
+    box-shadow: 0 0 10px rgba(16, 185, 129, 0.15);
+  }
+  .mode-card.active .mode-title { color: #34d399; }
+  .mode-title {
+    font-size: 11.5px;
+    font-weight: 700;
+    color: #e2e8f0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .star { color: #fbbf24; font-size: 11px; }
+  .mode-desc { font-size: 9.5px; color: var(--text-dim); line-height: 1.25; }
+  .mode-card.span-2 { grid-column: span 2; }
+
+  /* Tools List */
+  .tool-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 7px 10px;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 7px;
+    margin-bottom: 6px;
+  }
+  .tool-label { font-size: 11.5px; font-weight: 600; color: #cbd5e1; }
+  .tool-hint { font-size: 9.5px; color: var(--text-dim); }
+
+  /* Toggle Switch */
+  .switch { position: relative; width: 34px; height: 18px; display: inline-block; }
+  .switch input { opacity: 0; width: 0; height: 0; }
+  .slider {
+    position: absolute; inset: 0; cursor: pointer;
+    background: #334155; border-radius: 20px; transition: .2s;
+  }
+  .slider:before {
+    position: absolute; content: ""; height: 14px; width: 14px; left: 2px; bottom: 2px;
+    background: white; border-radius: 50%; transition: .2s;
+  }
+  input:checked + .slider { background: #10b981; }
+  input:checked + .slider:before { transform: translateX(16px); }
+
+  /* Live Telemetry Card */
+  .telemetry-card {
+    background: #0f1520;
+    border: 1px solid #1e293b;
+    border-radius: 7px;
+    padding: 8px 10px;
+    margin: 10px 0;
+    font: 11px ui-monospace, monospace;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+  }
+  .telem-item { display: flex; flex-direction: column; }
+  .telem-k { color: var(--text-dim); font-size: 9.5px; }
+  .telem-v { color: #38bdf8; font-weight: 700; font-size: 11.5px; }
+
+  /* Footer / Hotkeys */
+  .footer {
+    border-top: 1px solid var(--border);
+    padding-top: 8px;
+    margin-top: 8px;
+    font-size: 10px;
+    color: var(--text-dim);
+    line-height: 1.5;
+  }
+  kbd {
+    background: #1e293b;
+    border: 1px solid #334155;
+    border-radius: 3px;
+    padding: 1px 4px;
+    font: 9.5px ui-monospace, monospace;
+    color: #e2e8f0;
+  }
+</style>
+</head>
+<body>
+
+  <!-- Header -->
+  <div class="header">
+    <div class="title-group">
+      <div class="logo-icon">4K</div>
+      <div>
+        <div class="title">Anime UpScaler PRO</div>
+        <div class="ver">v3.1.0 · WebGL2 Neural</div>
+      </div>
+    </div>
+    <div class="gpu-badge">
+      <span class="gpu-dot"></span>
+      <span id="gpuBadgeText">WebGL2 GPU</span>
+    </div>
+  </div>
+
+  <!-- Site Context Bar -->
+  <div class="site-bar">
+    <div class="site-host" id="siteHost">Подключение…</div>
+    <button class="btn-site-toggle" id="btnSiteToggle">Только здесь</button>
+  </div>
+
+  <!-- Master Power Switch -->
+  <button class="btn-master" id="btnMaster">
+    <span>✨</span>
+    <span id="btnMasterText">АПСКЕЙЛЕР АКТИВЕН</span>
+  </button>
+
+  <!-- Modes Selection -->
+  <div class="section-title">
+    <span>Режим обработки</span>
+    <span style="color:#50e3c2;font-size:9.5px;">AnimeSR Core</span>
+  </div>
+
+  <div class="mode-grid">
+    <!-- Supreme Godmode -->
+    <button class="mode-card span-2" data-mode="godmode" style="border-color: rgba(245,158,11,0.5); background: rgba(245,158,11,0.06);">
+      <div class="mode-title" style="color:#fbbf24;">
+        <span>🚀 Supreme Godmode (50-Pass UL)</span>
+        <span class="star">ULTRA</span>
+      </div>
+      <div class="mode-desc">25 проходов RestoreUL + 25 UpscaleUL. Абсолютный максимум качества!</div>
+    </button>
+
+    <!-- Mode 4 (Source Favourite) -->
+    <button class="mode-card" data-mode="4">
+      <div class="mode-title">
+        <span>Режим 4 (AnimeSR)</span>
+        <span class="star">★</span>
+      </div>
+      <div class="mode-desc">Оригинал: RestoreS × 2 + UpscaleS × 2</div>
+    </button>
+
+    <!-- Mode 4 Turbo -->
+    <button class="mode-card" data-mode="4-turbo">
+      <div class="mode-title">Режим 4 Turbo ⚡</div>
+      <div class="mode-desc">В 3x быстрее, без 8K-перегрева</div>
+    </button>
+
+    <!-- Mode Ultra -->
+    <button class="mode-card" data-mode="ultra">
+      <div class="mode-title">Ultra Master 💎</div>
+      <div class="mode-desc">Anime4K L + L: тяжелая нейросеть</div>
+    </button>
+
+    <!-- Mode HQ (Cinema) -->
+    <button class="mode-card" data-mode="hq">
+      <div class="mode-title">HQ Кино (Кинематографичный)</div>
+      <div class="mode-desc">Anime4K M: глубокая очистка контуров</div>
+    </button>
+
+    <!-- Mode 2 -->
+    <button class="mode-card" data-mode="2">
+      <div class="mode-title">Режим 2 (2X Upscale)</div>
+      <div class="mode-desc">RestoreS + UpscaleS: лёгкий 2х</div>
+    </button>
+
+    <!-- Mode 1 -->
+    <button class="mode-card" data-mode="1">
+      <div class="mode-title">Режим 1 (Денойз)</div>
+      <div class="mode-desc">RestoreS: устранение артефактов</div>
+    </button>
+
+    <!-- Auto -->
+    <button class="mode-card span-2" data-mode="auto">
+      <div class="mode-title">🤖 Умный Авто-баланс</div>
+      <div class="mode-desc">Адаптивно держит кадровый бюджет видео (24/30/60 FPS)</div>
+    </button>
+
+    <!-- Bicubic -->
+    <button class="mode-card span-2" data-mode="bicubic">
+      <div class="mode-title">Бикубик + Шарп</div>
+      <div class="mode-desc">Catmull-Rom интерполяция + усиление граней (1 пасс)</div>
+    </button>
+  </div>
+
+  <!-- Interactive Features -->
+  <div class="section-title">Инструменты</div>
+
+  <div class="tool-row">
+    <div>
+      <div class="tool-label">⚡ Сравнение (A/B Split-Screen)</div>
+      <div class="tool-hint">Интерактивный ползунок До / После</div>
+    </div>
+    <label class="switch">
+      <input type="checkbox" id="checkSplit">
+      <span class="slider"></span>
+    </label>
+  </div>
+
+  <div class="tool-row">
+    <div>
+      <div class="tool-label">📊 Оверлей HUD</div>
+      <div class="tool-hint">FPS, ms рендера и статус на видео</div>
+    </div>
+    <label class="switch">
+      <input type="checkbox" id="checkHud">
+      <span class="slider"></span>
+    </label>
+  </div>
+
+  <!-- Snapshot Button -->
+  <button id="btnTakeSnapshot" style="width:100%;margin-top:8px;padding:7px;background:#152233;border:1px solid #1f324d;border-radius:7px;color:#34d399;font-weight:600;font-size:11.5px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;transition:all 0.15s;">
+    <span>📸</span><span>Сделать 4K снимок кадра (Обои)</span>
+  </button>
+
+  <!-- Detailed Settings Button -->
+  <button id="btnOpenOptions" style="width:100%;margin-top:6px;padding:9px;background:#182335;border:1px solid #273752;border-radius:7px;color:#38bdf8;font-weight:600;font-size:12px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;transition:all 0.15s;">
+    <span>⚙️</span><span>Детальные настройки и фильтры 2026</span>
+  </button>
+
+  <!-- Live Telemetry -->
+  <div class="telemetry-card">
+    <div class="telem-item">
+      <span class="telem-k">Разрешение</span>
+      <span class="telem-v" id="telRes">–</span>
+    </div>
+    <div class="telem-item">
+      <span class="telem-k">FPS Видео</span>
+      <span class="telem-v" id="telFps">–</span>
+    </div>
+    <div class="telem-item">
+      <span class="telem-k">Рендер кадра</span>
+      <span class="telem-v" id="telMs">–</span>
+    </div>
+    <div class="telem-item">
+      <span class="telem-k">Статус GPU</span>
+      <span class="telem-v" style="color:#34d399;" id="telGpu">Готов</span>
+    </div>
+  </div>
+
+  <!-- Hotkeys Guide -->
+  <div class="footer">
+    Хоткеи: <kbd>Alt+Shift+Q</kbd> Вкл/Выкл · <kbd>Alt+Shift+S</kbd> A/B Сравнение · <kbd>Alt+Shift+1/2</kbd> Смена режима
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>

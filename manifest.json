@@ -1,0 +1,73 @@
+{
+  "manifest_version": 3,
+  "name": "Anime UpScaler PRO",
+  "version": "3.1.0",
+  "description": "Нейросетевой апскейлер аниме в реальном времени на базе Anime4K / AnimeSR. Аппаратное ускорение WebGL2 для современных GPU.",
+  "permissions": [
+    "storage"
+  ],
+  "host_permissions": [
+    "<all_urls>"
+  ],
+  "options_ui": {
+    "page": "options.html",
+    "open_in_tab": true
+  },
+  "icons": {
+    "16": "icon16.png",
+    "48": "icon48.png",
+    "128": "icon128.png"
+  },
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Anime UpScaler PRO (Alt+Shift+Q)",
+    "default_icon": {
+      "16": "icon16.png",
+      "48": "icon48.png",
+      "128": "icon128.png"
+    }
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "commands": {
+    "toggle-active": {
+      "suggested_key": {
+        "default": "Alt+Shift+Q"
+      },
+      "description": "Включить/выключить апскейлер"
+    },
+    "toggle-fps": {
+      "suggested_key": {
+        "default": "Alt+Shift+F"
+      },
+      "description": "Показать/скрыть FPS и статус HUD"
+    },
+    "toggle-split": {
+      "suggested_key": {
+        "default": "Alt+Shift+S"
+      },
+      "description": "Сравнение: режим разделения экрана (A/B)"
+    },
+    "mode-next": {
+      "description": "Следующий режим мощности"
+    },
+    "mode-prev": {
+      "description": "Предыдущий режим мощности"
+    }
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "<all_urls>"
+      ],
+      "js": [
+        "anime4k-shaders.js",
+        "content.js"
+      ],
+      "run_at": "document_idle",
+      "all_frames": true,
+      "match_about_blank": true
+    }
+  ]
+}
