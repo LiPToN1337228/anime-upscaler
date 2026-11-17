@@ -152,22 +152,37 @@
   let activeTabId = null;
   let cfg = { ...DEFAULTS };
 
+  function cleanDomain(d) {
+    if (!d) return '';
+    return String(d).toLowerCase().replace(/^www\./, '').split(':')[0].trim();
+  }
+
   function isHostAllowed(host, list) {
     if (!host || !Array.isArray(list)) return false;
-    const clean = host.toLowerCase().replace(/^www\./, '');
+    const clean = cleanDomain(host);
     return list.some(item => {
-      const it = item.toLowerCase().replace(/^www\./, '');
+      const it = cleanDomain(item);
       return clean === it || clean.endsWith('.' + it);
     });
   }
 
   const isGlobalOn = () => cfg.enabled !== false;
   const isSiteAllowed = () => {
+    const clean = cleanDomain(currentHost);
+    if (cfg.hosts) {
+      if (cfg.hosts[currentHost] && cfg.hosts[currentHost].off === true) return false;
+      if (cfg.hosts[clean] && cfg.hosts[clean].off === true) return false;
+      if (cfg.hosts[currentHost] && cfg.hosts[currentHost].allowed === true) return true;
+      if (cfg.hosts[clean] && cfg.hosts[clean].allowed === true) return true;
+    }
     if (cfg.siteMode !== 'whitelist') return true;
     const allowed = Array.isArray(cfg.allowedHosts) ? cfg.allowedHosts : DEFAULTS.allowedHosts;
     return isHostAllowed(currentHost, allowed);
   };
-  const isSiteOff = () => !!(cfg.hosts && cfg.hosts[currentHost] && cfg.hosts[currentHost].off);
+  const isSiteOff = () => {
+    const clean = cleanDomain(currentHost);
+    return !!(cfg.hosts && ((cfg.hosts[currentHost] && cfg.hosts[currentHost].off) || (cfg.hosts[clean] && cfg.hosts[clean].off)));
+  };
   const isActiveHere = () => isGlobalOn() && isSiteAllowed() && !isSiteOff();
 
   function saveConfig(patch) {
@@ -339,32 +354,40 @@
   if ($btnSiteActivation) {
     $btnSiteActivation.addEventListener('click', () => {
       if (!currentHost) return;
-      const cleanHost = currentHost.toLowerCase().replace(/^www\./, '');
+      const cleanHost = cleanDomain(currentHost);
       let list = Array.isArray(cfg.allowedHosts) ? [...cfg.allowedHosts] : [...DEFAULTS.allowedHosts];
-      const isAllowed = isHostAllowed(currentHost, list);
+      const isAllowed = isSiteAllowed();
+      const hosts = { ...(cfg.hosts || {}) };
 
       if (isAllowed) {
         list = list.filter(item => {
-          const it = item.toLowerCase().replace(/^www\./, '');
+          const it = cleanDomain(item);
           return !(cleanHost === it || cleanHost.endsWith('.' + it) || it.endsWith('.' + cleanHost));
         });
+        delete hosts[currentHost];
+        delete hosts[cleanHost];
       } else {
-        if (!list.some(item => item.toLowerCase().replace(/^www\./, '') === cleanHost)) {
+        if (!list.some(item => cleanDomain(item) === cleanHost)) {
           list.push(cleanHost);
         }
+        if (hosts[currentHost]) { delete hosts[currentHost].off; hosts[currentHost].allowed = true; }
+        if (hosts[cleanHost]) { delete hosts[cleanHost].off; hosts[cleanHost].allowed = true; }
       }
-      saveConfig({ allowedHosts: list });
+      saveConfig({ allowedHosts: list, hosts });
     });
   }
 
   if ($btnSiteToggle) {
     $btnSiteToggle.addEventListener('click', () => {
       if (!currentHost) return;
+      const cleanHost = cleanDomain(currentHost);
       const hosts = { ...(cfg.hosts || {}) };
       if (isSiteOff()) {
         delete hosts[currentHost];
+        delete hosts[cleanHost];
       } else {
         hosts[currentHost] = { ...(hosts[currentHost] || {}), off: true };
+        hosts[cleanHost] = { ...(hosts[cleanHost] || {}), off: true };
       }
       saveConfig({ hosts });
     });

@@ -29,7 +29,7 @@ try {
   const manifest = JSON.parse(manifestRaw);
 
   assert(manifest.manifest_version === 3, 'Manifest is valid MV3', `version ${manifest.manifest_version}`);
-  assert(manifest.version === '3.4.0', 'Version matches 3.4.0', manifest.version);
+  assert(manifest.version === '3.4.1', 'Version matches 3.4.1', manifest.version);
   assert(manifest.options_ui && manifest.options_ui.page === 'options.html', 'Options UI page configured', manifest.options_ui.page);
   assert(manifest.content_scripts && manifest.content_scripts[0].all_frames === true, 'Content script runs in all_frames for iframe support');
 
@@ -127,6 +127,7 @@ const mockGL = createStrictMockGL();
 
 // Test GLSL shaders from content.js
 const contentCode = fs.readFileSync(path.join(__dirname, 'content.js'), 'utf8');
+const bkgCode = fs.readFileSync(path.join(__dirname, 'background.js'), 'utf8');
 
 function extractShader(code, constName) {
   const match = code.match(new RegExp(`const\\s+${constName}\\s*=\\s*\`([\\s\\S]*?)\`;`));
@@ -231,6 +232,9 @@ assert(contentCode.includes('ClipboardItem') && contentCode.includes('📸 4K С
 
 // Check selective whitelist guard
 assert(contentCode.includes('function isSiteAllowed()') && contentCode.includes('allowedHosts:'), 'Selective site whitelist guard implemented in content.js');
+assert(contentCode.includes('purgeDOM()'), 'content.js implements aggressive purgeDOM() for non-whitelisted sites');
+assert(contentCode.includes('❌ Скрыть на этом сайте'), 'content.js quick menu provides in-player whitelist removal');
+assert(bkgCode.includes('chrome.runtime.onInstalled.addListener'), 'background.js broadcasts config and purges unapproved tabs on install');
 
 // Check in-player mode switching & quick menu flyout
 assert(contentCode.includes('__au_quick_menu') && contentCode.includes('__au_widget_mode_btn'), 'PlayerWidget: In-player Mode switching badge & Glassmorphic Quick Menu flyout');

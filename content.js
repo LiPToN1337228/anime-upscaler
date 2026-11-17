@@ -6,6 +6,11 @@
   window.__animeUpscalerProLoaded = true;
 
   const HOST = location.hostname || 'local';
+  function cleanDomain(d) {
+    if (!d) return '';
+    return String(d).toLowerCase().replace(/^www\./, '').split(':')[0].trim();
+  }
+  const CLEAN_HOST = cleanDomain(HOST);
   const DEFAULTS = {
     enabled: true,
     siteMode: 'whitelist',
@@ -90,36 +95,65 @@
   const playerWidgets    = new Map(); // video -> PlayerWidget
   let rescanInterval     = null;
 
+  function purgeDOM() {
+    try {
+      const selectors = [
+        '.__au_widget_capsule',
+        '.__au_pro_hud',
+        '.__au_canvas_overlay',
+        '.__au_split_handle',
+        '.__au_split_badge_left',
+        '.__au_split_badge_right',
+        '.__au_quick_menu'
+      ];
+      const elements = document.querySelectorAll(selectors.join(', '));
+      elements.forEach(el => {
+        try { el.remove(); } catch (e) {}
+      });
+    } catch (e) {}
+  }
+
   // ─── Storage Synchronization ────────────────────────────────────────────────
   function loadConfig() {
     try {
       chrome.storage.local.get(DEFAULTS, v => {
         cfg = { ...DEFAULTS, ...v };
+        if (!isSiteAllowed()) {
+          purgeDOM();
+        }
         applyAll();
       });
       chrome.storage.onChanged.addListener((changes, area) => {
         if (area !== 'local') return;
         for (const k of Object.keys(changes)) cfg[k] = changes[k].newValue;
+        if (!isSiteAllowed()) {
+          purgeDOM();
+        }
         applyAll();
       });
     } catch (e) {}
   }
 
   function isSiteAllowed() {
-    if (cfg.hosts && cfg.hosts[HOST] && cfg.hosts[HOST].off === true) {
-      return false;
+    if (cfg.hosts) {
+      if (cfg.hosts[HOST] && cfg.hosts[HOST].off === true) return false;
+      if (cfg.hosts[CLEAN_HOST] && cfg.hosts[CLEAN_HOST].off === true) return false;
+      if (cfg.hosts[HOST] && cfg.hosts[HOST].allowed === true) return true;
+      if (cfg.hosts[CLEAN_HOST] && cfg.hosts[CLEAN_HOST].allowed === true) return true;
     }
-    if (cfg.hosts && cfg.hosts[HOST] && cfg.hosts[HOST].allowed === true) {
-      return true;
-    }
+    if (cfg.siteMode === 'all') return true;
+
     const list = Array.isArray(cfg.allowedHosts) ? cfg.allowedHosts : DEFAULTS.allowedHosts;
-    return list.some(h => HOST === h || HOST.endsWith('.' + h));
+    return list.some(item => {
+      const it = cleanDomain(item);
+      return CLEAN_HOST === it || CLEAN_HOST.endsWith('.' + it);
+    });
   }
 
   function isSiteActive() {
     if (!isSiteAllowed()) return false;
     if (cfg.enabled === false) return false;
-    const h = cfg.hosts && cfg.hosts[HOST];
+    const h = (cfg.hosts && (cfg.hosts[HOST] || cfg.hosts[CLEAN_HOST])) || null;
     return !(h && h.off);
   }
 
@@ -1827,7 +1861,11 @@
           if (e) e.loseContext();
         } catch (e) {}
       }
-      if (this.canvas) this.canvas.remove();
+      if (this.canvas) { try { this.canvas.remove(); } catch (e) {} this.canvas = null; }
+      if (this.hudEl)  { try { this.hudEl.remove(); } catch (e) {} this.hudEl = null; }
+      if (this.splitHandle) { try { this.splitHandle.remove(); } catch (e) {} this.splitHandle = null; }
+      if (this.badgeLeft) { try { this.badgeLeft.remove(); } catch (e) {} this.badgeLeft = null; }
+      if (this.badgeRight) { try { this.badgeRight.remove(); } catch (e) {} this.badgeRight = null; }
     }
   }
 
@@ -2196,9 +2234,45 @@
         this.quickMenu.appendChild(item);
       }
 
-      // Section 3: Link to Full Settings
+      // Section 3: Whitelist & Full Settings
       const footer = document.createElement('div');
-      footer.style.cssText = 'margin-top:8px;padding-top:8px;border-top:1px solid rgba(255,255,255,0.08);';
+      footer.style.cssText = 'margin-top:8px;padding-top:8px;border-top:1px solid rgba(255,255,255,0.08);display:flex;flex-direction:column;gap:5px;';
+
+      const btnHideSite = document.createElement('div');
+      btnHideSite.style.cssText = [
+        'display:flex', 'align-items:center', 'justify-content:center', 'gap:6px',
+        'padding:6px 10px', 'border-radius:10px',
+        'background:rgba(239,68,68,0.1)', 'border:1px solid rgba(239,68,68,0.25)',
+        'color:#f87171', 'font:600 11px/1 system-ui,-apple-system,sans-serif',
+        'cursor:pointer', 'transition:all 0.15s ease'
+      ].join(';');
+      btnHideSite.innerHTML = '<span>❌ Скрыть на этом сайте</span>';
+      btnHideSite.title = `Убрать ${CLEAN_HOST} из белого списка и скрыть кнопку`;
+
+      btnHideSite.addEventListener('mouseenter', () => {
+        btnHideSite.style.background = 'rgba(239,68,68,0.2)';
+        btnHideSite.style.color = '#fca5a5';
+      });
+      btnHideSite.addEventListener('mouseleave', () => {
+        btnHideSite.style.background = 'rgba(239,68,68,0.1)';
+        btnHideSite.style.color = '#f87171';
+      });
+      btnHideSite.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this.closeQuickMenu();
+        const cleanHost = CLEAN_HOST;
+        let list = Array.isArray(cfg.allowedHosts) ? [...cfg.allowedHosts] : [...DEFAULTS.allowedHosts];
+        list = list.filter(item => {
+          const it = cleanDomain(item);
+          return !(cleanHost === it || cleanHost.endsWith('.' + it) || it.endsWith('.' + cleanHost));
+        });
+        const hosts = { ...(cfg.hosts || {}) };
+        delete hosts[HOST];
+        delete hosts[cleanHost];
+        saveConfigPatch({ allowedHosts: list, hosts });
+        applyAll();
+      });
+      footer.appendChild(btnHideSite);
 
       const btnFullSettings = document.createElement('div');
       btnFullSettings.style.cssText = [
@@ -2435,16 +2509,15 @@
 
   function scanForVideos() {
     if (!isSiteAllowed()) {
-      if (activeProcessors.size > 0 || playerWidgets.size > 0) {
-        for (const [video, proc] of activeProcessors.entries()) {
-          proc.destroy();
-        }
-        for (const [video, widget] of playerWidgets.entries()) {
-          widget.destroy();
-        }
-        activeProcessors.clear();
-        playerWidgets.clear();
+      for (const [video, proc] of activeProcessors.entries()) {
+        try { proc.destroy(); } catch (e) {}
       }
+      for (const [video, widget] of playerWidgets.entries()) {
+        try { widget.destroy(); } catch (e) {}
+      }
+      activeProcessors.clear();
+      playerWidgets.clear();
+      purgeDOM();
       return;
     }
 
@@ -2496,13 +2569,14 @@
   function applyAll() {
     if (!isSiteAllowed()) {
       for (const [video, proc] of activeProcessors.entries()) {
-        proc.destroy();
+        try { proc.destroy(); } catch (e) {}
       }
       for (const [video, widget] of playerWidgets.entries()) {
-        widget.destroy();
+        try { widget.destroy(); } catch (e) {}
       }
       activeProcessors.clear();
       playerWidgets.clear();
+      purgeDOM();
       return;
     }
 
@@ -2539,15 +2613,25 @@
         return true;
       }
       if (msg.op === 'TOGGLE_ACTIVE') {
-        const h = { ...(cfg.hosts || {}) };
-        const hostCfg = h[HOST] || {};
+        const cleanHost = CLEAN_HOST;
+        let list = Array.isArray(cfg.allowedHosts) ? [...cfg.allowedHosts] : [...DEFAULTS.allowedHosts];
         const isAllowed = isSiteAllowed();
+        const hosts = { ...(cfg.hosts || {}) };
         if (isAllowed) {
-          h[HOST] = { ...hostCfg, off: true };
+          hosts[HOST] = { ...(hosts[HOST] || {}), off: true };
+          hosts[cleanHost] = { ...(hosts[cleanHost] || {}), off: true };
+          list = list.filter(item => {
+            const it = cleanDomain(item);
+            return !(cleanHost === it || cleanHost.endsWith('.' + it) || it.endsWith('.' + cleanHost));
+          });
         } else {
-          h[HOST] = { ...hostCfg, allowed: true, off: false };
+          if (!list.some(item => cleanDomain(item) === cleanHost)) {
+            list.push(cleanHost);
+          }
+          if (hosts[HOST]) { delete hosts[HOST].off; hosts[HOST].allowed = true; }
+          if (hosts[cleanHost]) { delete hosts[cleanHost].off; hosts[cleanHost].allowed = true; }
         }
-        saveConfigPatch({ hosts: h });
+        saveConfigPatch({ allowedHosts: list, hosts });
         applyAll();
         sendResponse({ ok: true, active: isSiteActive() });
       } else if (msg.op === 'TOGGLE_HUD') {
@@ -2620,6 +2704,9 @@
     }
   });
 
+  if (!isSiteAllowed()) {
+    purgeDOM();
+  }
   loadConfig();
   scanForVideos();
 })();

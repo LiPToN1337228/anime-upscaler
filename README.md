@@ -1,4 +1,4 @@
-# Anime UpScaler PRO (v3.4.0 — 2026 Perfection Edition)
+# Anime UpScaler PRO (v3.4.1 — 2026 Perfection Edition)
 
 Профессиональное браузерное расширение для **Brave, Chrome и других Chromium-браузеров** для нейросетевого апскейла и восстановления четкости аниме-видео в реальном времени.
 

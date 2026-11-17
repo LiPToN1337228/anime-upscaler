@@ -182,16 +182,24 @@
       return;
     }
     list.push(clean);
-    save({ allowedHosts: list });
+    const hosts = { ...(cfg.hosts || {}) };
+    if (hosts[clean]) delete hosts[clean].off;
+    if (hosts['www.' + clean]) delete hosts['www.' + clean].off;
+    save({ allowedHosts: list, hosts });
     renderHostsList();
     if ($inputNewHost) $inputNewHost.value = '';
     showToast(`Домен ${clean} добавлен в белый список`);
   }
 
   function removeHost(hostToRemove) {
+    const clean = hostToRemove.toLowerCase().replace(/^www\./, '').trim();
     let list = Array.isArray(cfg.allowedHosts) ? [...cfg.allowedHosts] : [...DEFAULTS.allowedHosts];
-    list = list.filter(h => h.toLowerCase() !== hostToRemove.toLowerCase());
-    save({ allowedHosts: list });
+    list = list.filter(h => h.toLowerCase().replace(/^www\./, '').trim() !== clean);
+    const hosts = { ...(cfg.hosts || {}) };
+    delete hosts[clean];
+    delete hosts['www.' + clean];
+    delete hosts[hostToRemove];
+    save({ allowedHosts: list, hosts });
     renderHostsList();
     showToast(`Домен ${hostToRemove} удален из белого списка`);
   }

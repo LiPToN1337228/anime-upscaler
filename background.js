@@ -57,6 +57,21 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   }
 });
 
+// Broadcast config update to all tabs on install/update so disallowed sites immediately purge widgets
+chrome.runtime.onInstalled.addListener(async () => {
+  try {
+    const tabs = await chrome.tabs.query({});
+    for (const tab of tabs) {
+      if (tab.id && tab.url && tab.url.startsWith('http')) {
+        chrome.tabs.sendMessage(tab.id, { op: 'APPLY_CONFIG' }, () => {
+          if (chrome.runtime.lastError) {}
+        });
+        updateBadge(tab.id, tab.url);
+      }
+    }
+  } catch (e) {}
+});
+
 async function getSiteStatus(url) {
   if (!url) return false;
   let host = '';
@@ -66,9 +81,16 @@ async function getSiteStatus(url) {
   const data = await chrome.storage.local.get(DEFAULTS);
   if (data.enabled === false) return false;
 
+  const cleanHost = host.toLowerCase().replace(/^www\./, '');
+  if (data.hosts) {
+    if (data.hosts[host] && data.hosts[host].off) return false;
+    if (data.hosts[cleanHost] && data.hosts[cleanHost].off) return false;
+    if (data.hosts[host] && data.hosts[host].allowed) return true;
+    if (data.hosts[cleanHost] && data.hosts[cleanHost].allowed) return true;
+  }
+
   if (data.siteMode === 'whitelist') {
     const list = Array.isArray(data.allowedHosts) ? data.allowedHosts : DEFAULTS.allowedHosts;
-    const cleanHost = host.toLowerCase().replace(/^www\./, '');
     const isAllowed = list.some(item => {
       const it = item.toLowerCase().replace(/^www\./, '');
       return cleanHost === it || cleanHost.endsWith('.' + it);
@@ -76,8 +98,7 @@ async function getSiteStatus(url) {
     if (!isAllowed) return false;
   }
 
-  const h = data.hosts && data.hosts[host];
-  return !(h && h.off);
+  return true;
 }
 
 async function updateBadge(tabId, url) {
