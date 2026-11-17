@@ -20,6 +20,9 @@ const DEFAULTS = {
   autoHideDelay: 2500,
   buttonStyle: 'pill',
   widgetCollapsed: false,
+  enableChromaRecon: true,
+  enableTemporalStability: true,
+  genrePreset: 'auto',
   hosts: {}
 };
 

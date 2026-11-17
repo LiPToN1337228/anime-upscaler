@@ -300,6 +300,75 @@
     border-radius: 4px;
   }
 
+  /* Genre Presets Grid */
+  .genre-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    gap: 12px;
+  }
+
+  .genre-card {
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    border-radius: 9px;
+    padding: 14px;
+    cursor: pointer;
+    transition: all 0.18s ease;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    position: relative;
+  }
+
+  .genre-card:hover {
+    border-color: #3b82f6;
+    background: var(--bg-card-hover);
+    transform: translateY(-2px);
+  }
+
+  .genre-card.selected {
+    border-color: var(--cyan);
+    background: rgba(6, 182, 212, 0.08);
+    box-shadow: 0 0 16px var(--cyan-glow);
+  }
+
+  .genre-card-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .genre-name {
+    font-weight: 700;
+    font-size: 13.5px;
+    color: #fff;
+  }
+
+  .genre-tag {
+    font-size: 10px;
+    font-weight: 700;
+    padding: 2px 6px;
+    border-radius: 4px;
+    text-transform: uppercase;
+  }
+
+  .genre-info {
+    font-size: 11.5px;
+    color: var(--text-muted);
+    line-height: 1.4;
+    flex: 1;
+  }
+
+  .genre-chain {
+    font-family: ui-monospace, monospace;
+    font-size: 10.5px;
+    color: var(--cyan);
+    margin-top: 4px;
+    background: rgba(0,0,0,0.3);
+    padding: 3px 6px;
+    border-radius: 4px;
+  }
+
   /* Form Controls */
   .control-row {
     display: flex;
@@ -562,7 +631,7 @@
       <div>
         <span class="brand-title">Anime UpScaler PRO</span>
       </div>
-      <span class="brand-ver">v3.1.0</span>
+      <span class="brand-ver">v3.2.0</span>
     </div>
     <div class="header-badges">
       <div class="status-pill">
@@ -583,7 +652,7 @@
       <span class="tab-icon">⚡</span> Производительность &amp; GPU
     </button>
     <button class="tab-btn" data-tab="tab-postprocess">
-      <span class="tab-icon">🎨</span> Фильтры 2026 (CAS)
+      <span class="tab-icon">🎨</span> Фильтры 2026
     </button>
     <button class="tab-btn" data-tab="tab-overlay">
       <span class="tab-icon">🎛</span> Плеер и Сворачивание
@@ -680,6 +749,50 @@
             </div>
             <div class="mode-info">Аппаратный Catmull-Rom бикубический апскейл с адаптивной резкостью. Нагрузка GPU &lt; 2%.</div>
             <div class="mode-chain">Catmull-Rom + Sharpness</div>
+          </div>
+
+        </div>
+      </div>
+
+      <div class="card" style="margin-top: 20px;">
+        <div class="card-title">🎭 Жанровые и эпохальные пресеты (Era / Genre Presets)</div>
+        <p class="panel-desc" style="margin-bottom: 14px;">Автоматическая оптимизация параметров нейросетей, фильтров и цветопередачи под эпоху и стилистику аниме.</p>
+        <div class="genre-grid" id="genreGrid">
+
+          <div class="genre-card" data-genre="auto">
+            <div class="genre-card-header">
+              <span class="genre-name">🤖 Авто-определение (Auto Adaptive)</span>
+              <span class="genre-tag tag-speed">AUTO</span>
+            </div>
+            <div class="genre-info">Автоматический баланс параметров нейросетей и фильтров на основе разрешения и битрейта.</div>
+            <div class="genre-chain">Авто-тюнинг параметров</div>
+          </div>
+
+          <div class="genre-card" data-genre="modern">
+            <div class="genre-card-header">
+              <span class="genre-name">🌸 Современное цифровое аниме (1080p Digital)</span>
+              <span class="genre-tag tag-star">MODERN</span>
+            </div>
+            <div class="genre-info">Кристальная четкость и насыщенность для современных цифровых тайтлов. Оптимизировано под контрастные контуры и сочные цвета.</div>
+            <div class="genre-chain">RestoreS + UpscaleS + CAS + Vibrance</div>
+          </div>
+
+          <div class="genre-card" data-genre="retro">
+            <div class="genre-card-header">
+              <span class="genre-name">📼 Ретро аниме (90s / 2000s)</span>
+              <span class="genre-tag tag-heavy">RETRO</span>
+            </div>
+            <div class="genre-info">Глубокая реставрация классики: бережное устранение аналогового зерна, шумов сканирования и ступеней оцифровки.</div>
+            <div class="genre-chain">RestoreUL + UpscaleL + Deband + Denoise</div>
+          </div>
+
+          <div class="genre-card" data-genre="stream-eco">
+            <div class="genre-card-header">
+              <span class="genre-name">⚡ Экономный стриминг (Stream-Eco)</span>
+              <span class="genre-tag tag-speed">ECO</span>
+            </div>
+            <div class="genre-info">Энергоэффективный пресет для низкого битрейта веб-трансляций и мобильных GPU без нагрева.</div>
+            <div class="genre-chain">RestoreS + Bilinear + CAS Lite</div>
           </div>
 
         </div>
@@ -783,6 +896,28 @@
           </div>
           <label class="switch">
             <input type="checkbox" id="checkEnableVibrance" checked>
+            <span class="slider"></span>
+          </label>
+        </div>
+
+        <div class="control-row">
+          <div class="control-info">
+            <div class="control-label">Chroma Subsampling Reconstruction (Устранение растекания цвета YUV420p)</div>
+            <div class="control-desc">Подтягивает границы цветных каналов (Chroma) к контурам линий (Luma), устраняя размытие цвета на чёрных контурах волос и глаз.</div>
+          </div>
+          <label class="switch">
+            <input type="checkbox" id="checkEnableChromaRecon" checked>
+            <span class="slider"></span>
+          </label>
+        </div>
+
+        <div class="control-row">
+          <div class="control-info">
+            <div class="control-label">Temporal Anti-Flicker (Стабилизация мерцания при движении)</div>
+            <div class="control-desc">Устраняет микро-мерцание тонких линий и штриховки при панорамировании камеры за счет адаптивного буфера кадровой истории.</div>
+          </div>
+          <label class="switch">
+            <input type="checkbox" id="checkEnableTemporalStability" checked>
             <span class="slider"></span>
           </label>
         </div>

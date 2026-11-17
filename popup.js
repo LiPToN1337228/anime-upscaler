@@ -9,6 +9,19 @@
     showHud: true,
     hudPosition: 'bottom-left',
     strength: 0.7,
+    enableCas: true,
+    enableDeband: true,
+    enableVibrance: true,
+    vibranceStrength: 0.18,
+    smartSync: true,
+    maxResolution: 'native',
+    autoHideUI: true,
+    autoHideDelay: 2500,
+    buttonStyle: 'pill',
+    widgetCollapsed: false,
+    enableChromaRecon: true,
+    enableTemporalStability: true,
+    genrePreset: 'auto',
     hosts: {}
   };
 
@@ -17,6 +30,7 @@
   const $btnMaster = document.getElementById('btnMaster');
   const $btnMasterText = document.getElementById('btnMasterText');
   const $modeCards = Array.from(document.querySelectorAll('.mode-card'));
+  const $genreCards = Array.from(document.querySelectorAll('.genre-card'));
   const $checkSplit = document.getElementById('checkSplit');
   const $checkHud = document.getElementById('checkHud');
 
@@ -25,6 +39,8 @@
   const $telMs = document.getElementById('telMs');
   const $telGpu = document.getElementById('telGpu');
   const $gpuBadgeText = document.getElementById('gpuBadgeText');
+  const $telemDroppedItem = document.getElementById('telemDroppedItem');
+  const $telDropped = document.getElementById('telDropped');
 
   // Dynamically detect GPU name from WebGL
   function detectGpuBadge() {
@@ -86,6 +102,7 @@
         $telMs.textContent = '–';
         $telGpu.textContent = 'Ожидание';
         $telGpu.style.color = '#94a3b8';
+        if ($telemDroppedItem) $telemDroppedItem.style.display = 'none';
         return;
       }
       $telRes.textContent = res.resolution || '–';
@@ -93,6 +110,16 @@
       $telMs.textContent = res.renderMs ? `${res.renderMs.toFixed(1)} ms` : '–';
       $telGpu.textContent = res.active ? 'Активен (RTX)' : 'Пауза';
       $telGpu.style.color = res.active ? '#34d399' : '#fbbf24';
+
+      if ($telemDroppedItem && $telDropped) {
+        if (typeof res.droppedFrames === 'number' || (res.droppedFrames !== undefined && res.droppedFrames !== null)) {
+          $telemDroppedItem.style.display = 'flex';
+          $telDropped.textContent = String(res.droppedFrames);
+          $telDropped.style.color = Number(res.droppedFrames) > 0 ? '#f87171' : '#34d399';
+        } else {
+          $telemDroppedItem.style.display = 'none';
+        }
+      }
     });
   }
 
@@ -118,6 +145,12 @@
     const effectiveMode = (cfg.hosts && cfg.hosts[currentHost] && cfg.hosts[currentHost].mode) || cfg.mode || '4';
     $modeCards.forEach((card) => {
       card.classList.toggle('active', card.dataset.mode === effectiveMode);
+    });
+
+    // 3b. Active Genre Preset
+    const currentGenre = cfg.genrePreset || 'auto';
+    $genreCards.forEach((card) => {
+      card.classList.toggle('active', card.dataset.genre === currentGenre);
     });
 
     // 4. Checkboxes
@@ -147,6 +180,13 @@
     card.addEventListener('click', () => {
       const mode = card.dataset.mode;
       saveConfig({ mode });
+    });
+  });
+
+  $genreCards.forEach((card) => {
+    card.addEventListener('click', () => {
+      const genre = card.dataset.genre;
+      saveConfig({ genrePreset: genre });
     });
   });
 

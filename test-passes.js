@@ -122,7 +122,9 @@ const presets = {
   'Mode 5 (M-Heavy)': ['Anime4kRestoreM', 'Anime4kUpscaleM', 'Anime4kRestoreM', 'Anime4kUpscaleM'],
   'Mode HQ (Cinematic)': ['Anime4kRestoreM', 'Anime4kUpscaleM'],
   'Mode Ultra (Master)': ['Anime4kRestoreL', 'Anime4kUpscaleL'],
-  'Mode Godmode (50-Pass UL)': ['Anime4kRestoreUL', 'Anime4kUpscaleUL']
+  'Mode Godmode (50-Pass UL)': ['Anime4kRestoreUL', 'Anime4kUpscaleUL'],
+  'Mode Modern (1080p Digital)': ['Anime4kRestoreS', 'Anime4kUpscaleS'],
+  'Mode Retro (90s-2000s)': ['Anime4kRestoreUL', 'Anime4kUpscaleL']
 };
 
 for (const [pName, pList] of Object.entries(presets)) {

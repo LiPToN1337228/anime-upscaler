@@ -19,6 +19,9 @@
     autoHideDelay: 2500,
     buttonStyle: 'pill',
     widgetCollapsed: false,
+    enableChromaRecon: true,
+    enableTemporalStability: true,
+    genrePreset: 'auto',
     hosts: {}
   };
 
@@ -28,6 +31,7 @@
   const $tabs = Array.from(document.querySelectorAll('.tab-btn'));
   const $panels = Array.from(document.querySelectorAll('.panel'));
   const $modeCards = Array.from(document.querySelectorAll('.mode-card'));
+  const $genreCards = Array.from(document.querySelectorAll('.genre-card'));
   const $checkSmartSync = document.getElementById('checkSmartSync');
   const $selectMaxRes = document.getElementById('selectMaxRes');
   const $checkEnableCas = document.getElementById('checkEnableCas');
@@ -35,6 +39,8 @@
   const $valStrength = document.getElementById('valStrength');
   const $checkEnableDeband = document.getElementById('checkEnableDeband');
   const $checkEnableVibrance = document.getElementById('checkEnableVibrance');
+  const $checkEnableChromaRecon = document.getElementById('checkEnableChromaRecon');
+  const $checkEnableTemporalStability = document.getElementById('checkEnableTemporalStability');
   const $checkAutoHideUI = document.getElementById('checkAutoHideUI');
   const $selectButtonStyle = document.getElementById('selectButtonStyle');
   const $checkWidgetCollapsed = document.getElementById('checkWidgetCollapsed');
@@ -80,6 +86,11 @@
       c.classList.toggle('selected', c.dataset.mode === (cfg.mode || '4'));
     });
 
+    // Genre cards
+    $genreCards.forEach(c => {
+      c.classList.toggle('selected', c.dataset.genre === (cfg.genrePreset || 'auto'));
+    });
+
     // Checkboxes & inputs
     if ($checkSmartSync) $checkSmartSync.checked = cfg.smartSync !== false;
     if ($selectMaxRes) $selectMaxRes.value = cfg.maxResolution || 'native';
@@ -90,6 +101,8 @@
     }
     if ($checkEnableDeband) $checkEnableDeband.checked = cfg.enableDeband !== false;
     if ($checkEnableVibrance) $checkEnableVibrance.checked = cfg.enableVibrance !== false;
+    if ($checkEnableChromaRecon) $checkEnableChromaRecon.checked = cfg.enableChromaRecon !== false;
+    if ($checkEnableTemporalStability) $checkEnableTemporalStability.checked = cfg.enableTemporalStability !== false;
     if ($checkAutoHideUI) $checkAutoHideUI.checked = cfg.autoHideUI !== false;
     if ($selectButtonStyle) $selectButtonStyle.value = cfg.buttonStyle || 'pill';
     if ($checkWidgetCollapsed) $checkWidgetCollapsed.checked = !!cfg.widgetCollapsed;
@@ -99,12 +112,24 @@
   }
 
   // Mode selection
-  $modeGrid = document.getElementById('modeGrid');
+  const $modeGrid = document.getElementById('modeGrid');
   if ($modeGrid) {
     $modeCards.forEach(c => {
       c.addEventListener('click', () => {
         const mode = c.dataset.mode;
         save({ mode });
+        render();
+      });
+    });
+  }
+
+  // Genre selection
+  const $genreGrid = document.getElementById('genreGrid');
+  if ($genreGrid) {
+    $genreCards.forEach(c => {
+      c.addEventListener('click', () => {
+        const genrePreset = c.dataset.genre;
+        save({ genrePreset });
         render();
       });
     });
@@ -134,6 +159,12 @@
   }
   if ($checkEnableVibrance) {
     $checkEnableVibrance.addEventListener('change', () => save({ enableVibrance: $checkEnableVibrance.checked }));
+  }
+  if ($checkEnableChromaRecon) {
+    $checkEnableChromaRecon.addEventListener('change', () => save({ enableChromaRecon: $checkEnableChromaRecon.checked }));
+  }
+  if ($checkEnableTemporalStability) {
+    $checkEnableTemporalStability.addEventListener('change', () => save({ enableTemporalStability: $checkEnableTemporalStability.checked }));
   }
   if ($checkAutoHideUI) {
     $checkAutoHideUI.addEventListener('change', () => save({ autoHideUI: $checkAutoHideUI.checked }));
