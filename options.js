@@ -21,6 +21,12 @@
     widgetCollapsed: false,
     enableChromaRecon: true,
     enableTemporalStability: true,
+    enableLineEnhance: true,
+    lineDarken: 0.35,
+    lineThin: 0.20,
+    enableBloom: false,
+    bloomStrength: 0.15,
+    batterySaver: true,
     genrePreset: 'auto',
     hosts: {}
   };
@@ -42,6 +48,15 @@
   const $checkEnableChromaRecon = document.getElementById('checkEnableChromaRecon');
   const $checkEnableTemporalStability = document.getElementById('checkEnableTemporalStability');
   const $checkAutoHideUI = document.getElementById('checkAutoHideUI');
+  const $checkEnableLineEnhance = document.getElementById('checkEnableLineEnhance');
+  const $rangeLineDarken = document.getElementById('rangeLineDarken');
+  const $valLineDarken = document.getElementById('valLineDarken');
+  const $rangeLineThin = document.getElementById('rangeLineThin');
+  const $valLineThin = document.getElementById('valLineThin');
+  const $checkEnableBloom = document.getElementById('checkEnableBloom');
+  const $rangeBloomStrength = document.getElementById('rangeBloomStrength');
+  const $valBloomStrength = document.getElementById('valBloomStrength');
+  const $checkBatterySaver = document.getElementById('checkBatterySaver');
   const $selectButtonStyle = document.getElementById('selectButtonStyle');
   const $checkWidgetCollapsed = document.getElementById('checkWidgetCollapsed');
   const $checkShowHud = document.getElementById('checkShowHud');
@@ -103,6 +118,21 @@
     if ($checkEnableVibrance) $checkEnableVibrance.checked = cfg.enableVibrance !== false;
     if ($checkEnableChromaRecon) $checkEnableChromaRecon.checked = cfg.enableChromaRecon !== false;
     if ($checkEnableTemporalStability) $checkEnableTemporalStability.checked = cfg.enableTemporalStability !== false;
+    if ($checkEnableLineEnhance) $checkEnableLineEnhance.checked = cfg.enableLineEnhance !== false;
+    if ($rangeLineDarken) {
+      $rangeLineDarken.value = cfg.lineDarken ?? 0.35;
+      if ($valLineDarken) $valLineDarken.textContent = Number(cfg.lineDarken ?? 0.35).toFixed(2);
+    }
+    if ($rangeLineThin) {
+      $rangeLineThin.value = cfg.lineThin ?? 0.20;
+      if ($valLineThin) $valLineThin.textContent = Number(cfg.lineThin ?? 0.20).toFixed(2);
+    }
+    if ($checkEnableBloom) $checkEnableBloom.checked = !!cfg.enableBloom;
+    if ($rangeBloomStrength) {
+      $rangeBloomStrength.value = cfg.bloomStrength ?? 0.15;
+      if ($valBloomStrength) $valBloomStrength.textContent = Number(cfg.bloomStrength ?? 0.15).toFixed(2);
+    }
+    if ($checkBatterySaver) $checkBatterySaver.checked = cfg.batterySaver !== false;
     if ($checkAutoHideUI) $checkAutoHideUI.checked = cfg.autoHideUI !== false;
     if ($selectButtonStyle) $selectButtonStyle.value = cfg.buttonStyle || 'pill';
     if ($checkWidgetCollapsed) $checkWidgetCollapsed.checked = !!cfg.widgetCollapsed;
@@ -165,6 +195,42 @@
   }
   if ($checkEnableTemporalStability) {
     $checkEnableTemporalStability.addEventListener('change', () => save({ enableTemporalStability: $checkEnableTemporalStability.checked }));
+  }
+  if ($checkEnableLineEnhance) {
+    $checkEnableLineEnhance.addEventListener('change', () => save({ enableLineEnhance: $checkEnableLineEnhance.checked }));
+  }
+  if ($rangeLineDarken) {
+    $rangeLineDarken.addEventListener('input', () => {
+      const v = Number($rangeLineDarken.value);
+      if ($valLineDarken) $valLineDarken.textContent = v.toFixed(2);
+    });
+    $rangeLineDarken.addEventListener('change', () => {
+      save({ lineDarken: Number($rangeLineDarken.value) });
+    });
+  }
+  if ($rangeLineThin) {
+    $rangeLineThin.addEventListener('input', () => {
+      const v = Number($rangeLineThin.value);
+      if ($valLineThin) $valLineThin.textContent = v.toFixed(2);
+    });
+    $rangeLineThin.addEventListener('change', () => {
+      save({ lineThin: Number($rangeLineThin.value) });
+    });
+  }
+  if ($checkEnableBloom) {
+    $checkEnableBloom.addEventListener('change', () => save({ enableBloom: $checkEnableBloom.checked }));
+  }
+  if ($rangeBloomStrength) {
+    $rangeBloomStrength.addEventListener('input', () => {
+      const v = Number($rangeBloomStrength.value);
+      if ($valBloomStrength) $valBloomStrength.textContent = v.toFixed(2);
+    });
+    $rangeBloomStrength.addEventListener('change', () => {
+      save({ bloomStrength: Number($rangeBloomStrength.value) });
+    });
+  }
+  if ($checkBatterySaver) {
+    $checkBatterySaver.addEventListener('change', () => save({ batterySaver: $checkBatterySaver.checked }));
   }
   if ($checkAutoHideUI) {
     $checkAutoHideUI.addEventListener('change', () => save({ autoHideUI: $checkAutoHideUI.checked }));

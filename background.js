@@ -22,6 +22,12 @@ const DEFAULTS = {
   widgetCollapsed: false,
   enableChromaRecon: true,
   enableTemporalStability: true,
+  enableLineEnhance: true,
+  lineDarken: 0.35,
+  lineThin: 0.20,
+  enableBloom: false,
+  bloomStrength: 0.15,
+  batterySaver: true,
   genrePreset: 'auto',
   hosts: {}
 };

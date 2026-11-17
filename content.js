@@ -21,6 +21,12 @@
     vibranceStrength: 0.18,
     enableChromaRecon: true,
     enableTemporalStability: true,
+    enableLineEnhance: true,
+    lineDarken: 0.35,
+    lineThin: 0.20,
+    enableBloom: false,
+    bloomStrength: 0.15,
+    batterySaver: true,
     genrePreset: 'auto',
     smartSync: true,
     maxResolution: 'native',
@@ -120,6 +126,11 @@
       if (d < 0.0018) {
         // Glowing Amber divider bar
         c = vec4(1.0, 0.75, 0.05, 1.0);
+      } else if (d < 0.0055) {
+        // Soft outer glow around divider
+        vec4 base = (vUv.x < uSplitX) ? texture(uRaw, vUv) : texture(uUp, vUv);
+        float glow = (1.0 - (d - 0.0018) / 0.0037) * 0.45;
+        c = mix(base, vec4(1.0, 0.75, 0.05, 1.0), glow);
       } else if (vUv.x < uSplitX) {
         c = texture(uRaw, vUv);
       } else {
@@ -379,6 +390,135 @@
       fragColor = vec4(clamp((c + (c - blur) * uSharp).rgb, 0.0, 1.0), 1.0);
     }`;
 
+  // 2026 Cinema Shaders:
+  // Anime Line Art Shaper (Darkening & Thinning)
+  const FS_LINE_ENHANCE = `#version 300 es
+    precision highp float;
+    in vec2 vUv;
+    uniform sampler2D uTex;
+    uniform vec2 uTexSize;
+    uniform float uLineDarken;
+    uniform float uLineThin;
+    out vec4 fragColor;
+
+    float getLuma(vec3 c) {
+      return dot(c, vec3(0.2126, 0.7152, 0.0722));
+    }
+
+    void main() {
+      vec4 base = texture(uTex, vUv);
+      if (uLineDarken <= 0.001 && uLineThin <= 0.001) {
+        fragColor = base;
+        return;
+      }
+
+      vec2 px = 1.0 / uTexSize;
+
+      // 3x3 neighborhood samples for Sobel / Laplacian
+      vec3 cTL = texture(uTex, vUv + vec2(-px.x, -px.y)).rgb;
+      vec3 cT  = texture(uTex, vUv + vec2( 0.0,  -px.y)).rgb;
+      vec3 cTR = texture(uTex, vUv + vec2( px.x, -px.y)).rgb;
+      vec3 cL  = texture(uTex, vUv + vec2(-px.x,  0.0 )).rgb;
+      vec3 cC  = base.rgb;
+      vec3 cR  = texture(uTex, vUv + vec2( px.x,  0.0 )).rgb;
+      vec3 cBL = texture(uTex, vUv + vec2(-px.x,  px.y)).rgb;
+      vec3 cB  = texture(uTex, vUv + vec2( 0.0,   px.y)).rgb;
+      vec3 cBR = texture(uTex, vUv + vec2( px.x,  px.y)).rgb;
+
+      float yTL = getLuma(cTL);
+      float yT  = getLuma(cT);
+      float yTR = getLuma(cTR);
+      float yL  = getLuma(cL);
+      float yC  = getLuma(cC);
+      float yR  = getLuma(cR);
+      float yBL = getLuma(cBL);
+      float yB  = getLuma(cB);
+      float yBR = getLuma(cBR);
+
+      // 3x3 Sobel gradient
+      float gx = (yTR + 2.0 * yR + yBR) - (yTL + 2.0 * yL + yBL);
+      float gy = (yBL + 2.0 * yB + yBR) - (yTL + 2.0 * yT + yTR);
+      float edge = sqrt(gx * gx + gy * gy);
+
+      // Laplacian luma edge curvature
+      float lap = (yTL + yT + yTR + yL + yR + yBL + yB + yBR) - 8.0 * yC;
+
+      vec3 outColor = cC;
+
+      // Anime Line Art Darkening: darkens greyish/faded line edges towards ink black without halo
+      if (uLineDarken > 0.001) {
+        float edgeFactor = smoothstep(0.06, 0.32, edge);
+        float greyFadeFactor = 1.0 - smoothstep(0.08, 0.72, yC);
+        float darken = edgeFactor * greyFadeFactor * clamp(uLineDarken, 0.0, 1.0);
+        outColor = mix(outColor, outColor * (1.0 - darken * 0.75), darken);
+      }
+
+      // Anime Line Art Thinning: suppresses wide blurred fringes
+      if (uLineThin > 0.001) {
+        vec3 maxNeighbor = max(max(max(cTL, cTR), max(cBL, cBR)), max(max(cT, cB), max(cL, cR)));
+        float isFringe = smoothstep(0.08, 0.35, edge) * smoothstep(0.22, 0.70, yC) * smoothstep(0.0, 0.35, -lap);
+        float thin = isFringe * clamp(uLineThin, 0.0, 1.0) * 0.45;
+        outColor = mix(outColor, max(outColor, maxNeighbor), thin);
+      }
+
+      fragColor = vec4(clamp(outColor, 0.0, 1.0), base.a);
+    }`;
+
+  // Cinematic Anime Bloom / Shinkai Diffusion
+  const FS_BLOOM = `#version 300 es
+    precision highp float;
+    in vec2 vUv;
+    uniform sampler2D uTex;
+    uniform vec2 uTexSize;
+    uniform float uBloomStrength;
+    out vec4 fragColor;
+
+    float getLuma(vec3 c) {
+      return dot(c, vec3(0.2126, 0.7152, 0.0722));
+    }
+
+    vec3 extractHighlight(vec3 c) {
+      float luma = getLuma(c);
+      float threshold = 0.70;
+      float soft = 0.22;
+      float weight = smoothstep(threshold, threshold + soft, luma);
+      return c * weight;
+    }
+
+    void main() {
+      vec4 base = texture(uTex, vUv);
+      if (uBloomStrength <= 0.001) {
+        fragColor = base;
+        return;
+      }
+
+      vec2 px = (1.0 / uTexSize) * 2.5;
+
+      // 9-tap Gaussian kernel weights (sigma ~ 2.5)
+      const float w[9] = float[](
+        0.0285, 0.0672, 0.1240, 0.1790, 0.2026, 0.1790, 0.1240, 0.0672, 0.0285
+      );
+      const float offsets[9] = float[](
+        -4.0, -3.0, -2.0, -1.0, 0.0, 1.0, 2.0, 3.0, 4.0
+      );
+
+      vec3 bloomH = vec3(0.0);
+      vec3 bloomV = vec3(0.0);
+
+      for (int i = 0; i < 9; i++) {
+        vec3 sH = texture(uTex, vUv + vec2(offsets[i] * px.x, 0.0)).rgb;
+        vec3 sV = texture(uTex, vUv + vec2(0.0, offsets[i] * px.y)).rgb;
+        bloomH += extractHighlight(sH) * w[i];
+        bloomV += extractHighlight(sV) * w[i];
+      }
+
+      vec3 blurredHighlight = (bloomH + bloomV) * 0.5;
+      vec3 bloomColor = blurredHighlight * clamp(uBloomStrength, 0.0, 0.3);
+      vec3 screenBlended = 1.0 - (1.0 - base.rgb) * (1.0 - bloomColor);
+
+      fragColor = vec4(clamp(screenBlended, 0.0, 1.0), base.a);
+    }`;
+
   function compileShader(gl, type, src) {
     const s = gl.createShader(type);
     gl.shaderSource(s, src); gl.compileShader(s);
@@ -418,16 +558,28 @@
       this.isDrm       = false;
       this._inFS       = false;
 
+      this._hasDrawnFirstFrame = false;
+      this._isContextLost = false;
+      this._isTabHidden = false;
+
       this._lastPresentedFrame = -1;
       this._isLoopActive = false;
 
       this.canvas      = null;
       this.hudEl       = null;
       this.splitHandle = null;
+      this.splitBadgeLeft = null;
+      this.splitBadgeRight = null;
       this.isDraggingSplit = false;
 
+      this.progSplit       = null;
+      this.progBicubic     = null;
+      this.progCas         = null;
       this.progChromaRecon = null;
       this.progTemporal    = null;
+      this.progLineEnhance = null;
+      this.progBloom       = null;
+
       this.historyTextures = null;
       this.historyFbos     = null;
       this.historyWidth    = 0;
@@ -436,10 +588,11 @@
       this.isFirstTemporalFrame = true;
       this.historyTexture  = null;
       this.chromaFbo       = null;
-      this.postTexture     = null;
-      this.postFbo         = null;
+      this.postTextures    = null;
+      this.postFbos        = null;
       this.postWidth       = 0;
       this.postHeight      = 0;
+      this.postIdx         = 0;
 
       this._trackBound = this._trackPosition.bind(this);
       this._rafId      = null;
@@ -458,6 +611,19 @@
       c.style.cssText = 'position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:2;display:none;image-rendering:auto;';
       this.canvas = c;
 
+      c.addEventListener('webglcontextlost', (e) => {
+        e.preventDefault();
+        this._onContextLost();
+      });
+      c.addEventListener('webglcontextrestored', () => {
+        this._onContextRestored();
+      });
+
+      this._setupGLContext();
+    }
+
+    _setupGLContext() {
+      const c = this.canvas;
       const gl = c.getContext('webgl2', {
         alpha: false, depth: false, stencil: false, antialias: false,
         premultipliedAlpha: false, preserveDrawingBuffer: true, // preserveDrawingBuffer enables 4K snapshots
@@ -486,6 +652,48 @@
       try { this.progCas         = createProgram(gl, VS_QUAD, FS_CAS);                } catch(e) {}
       try { this.progChromaRecon = createProgram(gl, VS_QUAD, FS_CHROMA_RECONSTRUCT); } catch(e) {}
       try { this.progTemporal    = createProgram(gl, VS_QUAD, FS_TEMPORAL_STABILITY); } catch(e) {}
+      try { this.progLineEnhance = createProgram(gl, VS_QUAD, FS_LINE_ENHANCE);       } catch(e) {}
+      try { this.progBloom       = createProgram(gl, VS_QUAD, FS_BLOOM);              } catch(e) {}
+    }
+
+    _onContextLost() {
+      console.warn('[AnimeUpScaler PRO] WebGL Context Lost! Pausing render pipeline...');
+      this._isContextLost = true;
+      this._hasDrawnFirstFrame = false;
+      this._isLoopActive = false;
+      if (this.video) this.video.style.opacity = '';
+      this.updateHUD('⚠ WebGL Lost');
+      this.passes = [];
+      this.historyTextures = null;
+      this.historyFbos = null;
+      this.postTextures = null;
+      this.postFbos = null;
+      this.chromaFbo = null;
+      this.rawTexture = null;
+      this.quadBuf = null;
+      this.progSplit = null;
+      this.progBicubic = null;
+      this.progCas = null;
+      this.progChromaRecon = null;
+      this.progTemporal = null;
+      this.progLineEnhance = null;
+      this.progBloom = null;
+    }
+
+    _onContextRestored() {
+      console.log('[AnimeUpScaler PRO] WebGL Context Restored! Self-healing engine...');
+      this._setupGLContext();
+      this._isContextLost = false;
+      this._hasDrawnFirstFrame = false;
+      this.rebuildPasses();
+      this.updateHUD('⚡ Контекст восстановлен');
+      if (this.isOn) {
+        this.renderSingleFrame();
+        if (!this.video.paused && !this.video.ended && !this._isLoopActive) {
+          const id = ++this.renderingId;
+          this.renderLoop(id);
+        }
+      }
     }
 
     _destroyTemporalBuffers() {
@@ -534,35 +742,48 @@
       gl.bindFramebuffer(gl.FRAMEBUFFER, null);
     }
 
+    get postTexture() { return (this.postTextures && this.postTextures[this.postIdx]) || null; }
+    get postFbo()     { return (this.postFbos && this.postFbos[this.postIdx]) || null; }
+
     _destroyPostBuffers() {
       const gl = this.gl;
       if (!gl) return;
-      if (this.postTexture) { gl.deleteTexture(this.postTexture); this.postTexture = null; }
-      if (this.postFbo)     { gl.deleteFramebuffer(this.postFbo); this.postFbo = null;     }
+      if (this.postTextures) {
+        for (const t of this.postTextures) if (t) gl.deleteTexture(t);
+        this.postTextures = null;
+      }
+      if (this.postFbos) {
+        for (const f of this.postFbos) if (f) gl.deleteFramebuffer(f);
+        this.postFbos = null;
+      }
       this.postWidth = 0;
       this.postHeight = 0;
+      this.postIdx = 0;
     }
 
     _initPostBuffers(w, h) {
       const gl = this.gl;
       if (!gl || !w || !h) return;
-      if (this.postWidth === w && this.postHeight === h && this.postTexture) return;
+      if (this.postWidth === w && this.postHeight === h && this.postTextures) return;
 
       this._destroyPostBuffers();
-      this.postTexture = gl.createTexture();
-      this.postFbo = gl.createFramebuffer();
+      this.postTextures = [gl.createTexture(), gl.createTexture()];
+      this.postFbos = [gl.createFramebuffer(), gl.createFramebuffer()];
       this.postWidth = w;
       this.postHeight = h;
+      this.postIdx = 0;
 
-      gl.bindTexture(gl.TEXTURE_2D, this.postTexture);
-      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, w, h, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
-      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
-      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
-      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
-      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+      for (let i = 0; i < 2; i++) {
+        gl.bindTexture(gl.TEXTURE_2D, this.postTextures[i]);
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, w, h, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
 
-      gl.bindFramebuffer(gl.FRAMEBUFFER, this.postFbo);
-      gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, this.postTexture, 0);
+        gl.bindFramebuffer(gl.FRAMEBUFFER, this.postFbos[i]);
+        gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, this.postTextures[i], 0);
+      }
       gl.bindFramebuffer(gl.FRAMEBUFFER, null);
     }
 
@@ -600,17 +821,19 @@
       const pR = p.getBoundingClientRect();
       const visible = vR.width > 4 && vR.height > 4;
       const c = this.canvas;
+      const vComp = window.getComputedStyle(v);
 
       if (this.isOn && visible) {
-        c.style.position = 'absolute';
-        c.style.left     = (vR.left - pR.left + p.scrollLeft) + 'px';
-        c.style.top      = (vR.top  - pR.top  + p.scrollTop)  + 'px';
-        c.style.width    = vR.width  + 'px';
-        c.style.height   = vR.height + 'px';
-        c.style.zIndex   = '2';
-        c.style.display  = 'block';
+        c.style.position  = 'absolute';
+        c.style.left      = (vR.left - pR.left + p.scrollLeft) + 'px';
+        c.style.top       = (vR.top  - pR.top  + p.scrollTop)  + 'px';
+        c.style.width     = vR.width  + 'px';
+        c.style.height    = vR.height + 'px';
+        c.style.objectFit = vComp.objectFit || 'contain';
+        c.style.zIndex    = '2';
+        c.style.display   = 'block';
       } else {
-        c.style.display = 'none';
+        c.style.display   = 'none';
       }
 
       if (this.hudEl)       this._placeHudFixed(vR);
@@ -631,9 +854,43 @@
     _placeSplitFixed(r) {
       if (!this.splitHandle) return;
       const sp = Number(cfg.splitPosition) || 0.5;
-      this.splitHandle.style.left   = (r.left + r.width * sp) + 'px';
-      this.splitHandle.style.top    = r.top    + 'px';
-      this.splitHandle.style.height = r.height + 'px';
+
+      if (this._inFS && this._fsContainer) {
+        const cR = this._fsContainer.getBoundingClientRect();
+        this.splitHandle.style.position = 'absolute';
+        this.splitHandle.style.left   = (r.left - cR.left + r.width * sp) + 'px';
+        this.splitHandle.style.top    = (r.top  - cR.top)  + 'px';
+        this.splitHandle.style.height = r.height + 'px';
+
+        if (this.splitBadgeLeft) {
+          this.splitBadgeLeft.style.position = 'absolute';
+          this.splitBadgeLeft.style.left = (r.left - cR.left + 14) + 'px';
+          this.splitBadgeLeft.style.top  = (r.top  - cR.top  + 14) + 'px';
+        }
+        if (this.splitBadgeRight) {
+          const w = this.splitBadgeRight.offsetWidth || 110;
+          this.splitBadgeRight.style.position = 'absolute';
+          this.splitBadgeRight.style.left = (r.right - cR.left - w - 14) + 'px';
+          this.splitBadgeRight.style.top  = (r.top   - cR.top  + 14) + 'px';
+        }
+      } else {
+        this.splitHandle.style.position = 'fixed';
+        this.splitHandle.style.left   = (r.left + r.width * sp) + 'px';
+        this.splitHandle.style.top    = r.top    + 'px';
+        this.splitHandle.style.height = r.height + 'px';
+
+        if (this.splitBadgeLeft) {
+          this.splitBadgeLeft.style.position = 'fixed';
+          this.splitBadgeLeft.style.left = (r.left + 14) + 'px';
+          this.splitBadgeLeft.style.top  = (r.top  + 14) + 'px';
+        }
+        if (this.splitBadgeRight) {
+          const w = this.splitBadgeRight.offsetWidth || 110;
+          this.splitBadgeRight.style.position = 'fixed';
+          this.splitBadgeRight.style.left = (r.right - w - 14) + 'px';
+          this.splitBadgeRight.style.top  = (r.top   + 14) + 'px';
+        }
+      }
     }
 
     _initObservers() {
@@ -643,6 +900,21 @@
       this.video.addEventListener('resize', this._onVideoResize);
       this._onCanPlay = () => { if (this.video.mediaKeys) { this.isDrm = true; this.updateHUD('🛡 DRM'); } };
       this.video.addEventListener('canplay', this._onCanPlay);
+
+      this._onLoadedMeta = () => {
+        if (this.isOn) {
+          this.rebuildPasses();
+          this.renderSingleFrame();
+        }
+      };
+      this._onLoadedData = () => {
+        if (this.isOn) {
+          this.rebuildPasses();
+          this.renderSingleFrame();
+        }
+      };
+      this.video.addEventListener('loadedmetadata', this._onLoadedMeta);
+      this.video.addEventListener('loadeddata',     this._onLoadedData);
     }
 
     _initVideoPlaybackEvents() {
@@ -654,11 +926,14 @@
       };
       this._onPause = () => {
         if (this.isOn) {
+          if (!this._hasDrawnFirstFrame) this.video.style.opacity = '';
           setTimeout(() => this.renderSingleFrame(), 16);
         }
       };
       this._onSeeked = () => {
         this.isFirstTemporalFrame = true;
+        this._hasDrawnFirstFrame = false;
+        this.video.style.opacity = '';
         if (this.isOn && (this.video.paused || this.video.ended)) {
           this.renderSingleFrame();
         }
@@ -684,10 +959,11 @@
       const container = (fse.tagName === 'VIDEO') ? (fse.parentElement || document.documentElement) : fse;
 
       const c = this.canvas;
-      c.style.position = 'absolute';
-      c.style.left     = '0'; c.style.top = '0';
-      c.style.width    = '100%'; c.style.height = '100%';
-      c.style.zIndex   = '2';
+      c.style.position  = 'absolute';
+      c.style.left      = '0'; c.style.top = '0';
+      c.style.width     = '100%'; c.style.height = '100%';
+      c.style.zIndex    = '2';
+      c.style.objectFit = window.getComputedStyle(this.video).objectFit || 'contain';
       if (this.isOn) c.style.display = 'block';
       container.appendChild(c);
 
@@ -699,11 +975,11 @@
       }
 
       if (this.splitHandle) {
-        this.splitHandle.style.position = 'absolute';
-        this.splitHandle.style.top      = '0';
-        this.splitHandle.style.height   = '100%';
-        this.splitHandle.style.left     = (Number(cfg.splitPosition) || 0.5) * 100 + '%';
         container.appendChild(this.splitHandle);
+        if (this.splitBadgeLeft)  container.appendChild(this.splitBadgeLeft);
+        if (this.splitBadgeRight) container.appendChild(this.splitBadgeRight);
+        const r = this.video.getBoundingClientRect();
+        this._placeSplitFixed(r);
       }
 
       const widget = playerWidgets.get(this.video);
@@ -729,6 +1005,16 @@
       if (this.splitHandle) {
         this.splitHandle.style.position = 'fixed';
         document.documentElement.appendChild(this.splitHandle);
+        if (this.splitBadgeLeft) {
+          this.splitBadgeLeft.style.position = 'fixed';
+          document.documentElement.appendChild(this.splitBadgeLeft);
+        }
+        if (this.splitBadgeRight) {
+          this.splitBadgeRight.style.position = 'fixed';
+          document.documentElement.appendChild(this.splitBadgeRight);
+        }
+        const r = this.video.getBoundingClientRect();
+        this._placeSplitFixed(r);
       }
 
       const widget = playerWidgets.get(this.video);
@@ -804,10 +1090,12 @@
     start() {
       if (this.isOn) return;
       this.isOn = true;
+      this._hasDrawnFirstFrame = false;
       this.isDrm = !!this.video.mediaKeys;
       this._mountCanvas();
       this.canvas.style.display = 'block';
-      this.video.style.opacity  = '0.001';
+      // Black screen fix: do NOT hide video with 0.001 opacity yet!
+      // Video stays visible underneath until the first frame has successfully rendered.
       this.rebuildPasses();
       this.updateHUD();
       this.updateSplitHandle();
@@ -821,17 +1109,20 @@
 
     stop() {
       this.isOn = false;
+      this._hasDrawnFirstFrame = false;
       this.renderingId++;
       this._isLoopActive = false;
       if (this.canvas) this.canvas.style.display = 'none';
       if (this.video)  this.video.style.opacity  = '';
       if (this.hudEl)  { this.hudEl.remove(); this.hudEl = null; }
-      if (this.splitHandle) { this.splitHandle.remove(); this.splitHandle = null; }
+      if (this.splitHandle)     { this.splitHandle.remove();     this.splitHandle = null;     }
+      if (this.splitBadgeLeft)  { this.splitBadgeLeft.remove();  this.splitBadgeLeft = null;  }
+      if (this.splitBadgeRight) { this.splitBadgeRight.remove(); this.splitBadgeRight = null; }
     }
 
     renderSingleFrame() {
       const v = this.video, gl = this.gl;
-      if (v && gl && v.readyState >= 2 && v.videoHeight > 0) {
+      if (v && gl && !this._isContextLost && v.readyState >= 2 && v.videoHeight > 0) {
         this.renderFrame();
       }
     }
@@ -839,6 +1130,11 @@
     // ── Smart Zero-Idle Render Loop ──────────────────────────────────────────
     renderLoop(runId) {
       if (!this.isOn || this.renderingId !== runId) {
+        this._isLoopActive = false;
+        return;
+      }
+
+      if (this._isContextLost || this._isTabHidden || document.hidden) {
         this._isLoopActive = false;
         return;
       }
@@ -920,6 +1216,10 @@
           gl.uniform2f(gl.getUniformLocation(this.progBicubic, 'uTexSize'), vW, vH);
           gl.uniform1f(gl.getUniformLocation(this.progBicubic, 'uSharp'), Number(cfg.strength) || 0.7);
           gl.drawArrays(gl.TRIANGLES, 0, 6);
+          if (!this._hasDrawnFirstFrame) {
+            this._hasDrawnFirstFrame = true;
+            this.video.style.opacity = '0.001';
+          }
           return;
         }
 
@@ -1003,52 +1303,110 @@
           currentOutTex = targetTex;
         }
 
-        // ── Step 4: Post-Processing (CAS + Vibrance + Deband + Denoise) ──────
+        // ── Step 4: Post-Processing Pipeline (CAS + Line Enhance + Bloom) ──
         const isModern = mode === 'modern';
         const isRetro  = mode === 'retro';
+        const isCinema = mode === 'hq' || mode === 'godmode';
 
         const enableCas     = isModern || (!isRetro && cfg.enableCas !== false);
         const enableVib     = isModern || (!isRetro && cfg.enableVibrance !== false);
         const enableDeband  = isRetro  || (!isModern && cfg.enableDeband !== false);
         const enableDenoise = isRetro;
+        const needsCas      = !!(this.progCas && (enableCas || enableVib || enableDeband || enableDenoise));
 
-        const needsPost = this.progCas && (enableCas || enableVib || enableDeband || enableDenoise);
+        const enableLine    = !!(this.progLineEnhance && cfg.enableLineEnhance !== false);
+        const enableBloom   = !!(this.progBloom && ((cfg.enableBloom === true) || (isCinema && cfg.enableBloom !== false)));
 
-        if (needsPost) {
-          const renderToScreen = !cfg.splitScreen;
-          if (renderToScreen) {
-            gl.bindFramebuffer(gl.FRAMEBUFFER, null);
-          } else {
-            this._initPostBuffers(outW, outH);
-            gl.bindFramebuffer(gl.FRAMEBUFFER, this.postFbo);
-          }
-          gl.viewport(0, 0, outW, outH);
+        const postPasses = [];
 
-          gl.useProgram(this.progCas);
-          gl.bindBuffer(gl.ARRAY_BUFFER, this.quadBuf);
-          const aPos = gl.getAttribLocation(this.progCas, 'aPos');
-          gl.enableVertexAttribArray(aPos);
-          gl.vertexAttribPointer(aPos, 2, gl.FLOAT, false, 0, 0);
+        if (needsCas) {
+          postPasses.push((inTex, targetFbo) => {
+            gl.bindFramebuffer(gl.FRAMEBUFFER, targetFbo);
+            gl.viewport(0, 0, outW, outH);
+            gl.useProgram(this.progCas);
+            gl.bindBuffer(gl.ARRAY_BUFFER, this.quadBuf);
+            const aPos = gl.getAttribLocation(this.progCas, 'aPos');
+            gl.enableVertexAttribArray(aPos);
+            gl.vertexAttribPointer(aPos, 2, gl.FLOAT, false, 0, 0);
 
-          gl.activeTexture(gl.TEXTURE0);
-          gl.bindTexture(gl.TEXTURE_2D, currentOutTex);
-          gl.uniform1i(gl.getUniformLocation(this.progCas, 'uTex'), 0);
-          gl.uniform2f(gl.getUniformLocation(this.progCas, 'uTexSize'), outW, outH);
+            gl.activeTexture(gl.TEXTURE0);
+            gl.bindTexture(gl.TEXTURE_2D, inTex);
+            gl.uniform1i(gl.getUniformLocation(this.progCas, 'uTex'), 0);
+            gl.uniform2f(gl.getUniformLocation(this.progCas, 'uTexSize'), outW, outH);
 
-          const sharpness = enableCas ? (Number(cfg.strength) || 0.7) : 0.0;
-          const vibrance  = enableVib ? (Number(cfg.vibranceStrength) || 0.18) : 0.0;
-          const deband    = enableDeband ? 1.0 : 0.0;
-          const denoise   = enableDenoise ? 1.0 : 0.0;
+            const sharpness = enableCas ? (Number(cfg.strength) || 0.7) : 0.0;
+            const vibrance  = enableVib ? (Number(cfg.vibranceStrength) || 0.18) : 0.0;
+            const deband    = enableDeband ? 1.0 : 0.0;
+            const denoise   = enableDenoise ? 1.0 : 0.0;
 
-          gl.uniform1f(gl.getUniformLocation(this.progCas, 'uSharpness'), sharpness);
-          gl.uniform1f(gl.getUniformLocation(this.progCas, 'uVibrance'),  vibrance);
-          gl.uniform1f(gl.getUniformLocation(this.progCas, 'uDeband'),    deband);
-          gl.uniform1f(gl.getUniformLocation(this.progCas, 'uDenoise'),   denoise);
+            gl.uniform1f(gl.getUniformLocation(this.progCas, 'uSharpness'), sharpness);
+            gl.uniform1f(gl.getUniformLocation(this.progCas, 'uVibrance'),  vibrance);
+            gl.uniform1f(gl.getUniformLocation(this.progCas, 'uDeband'),    deband);
+            gl.uniform1f(gl.getUniformLocation(this.progCas, 'uDenoise'),   denoise);
 
-          gl.drawArrays(gl.TRIANGLES, 0, 6);
+            gl.drawArrays(gl.TRIANGLES, 0, 6);
+          });
+        }
 
-          if (!renderToScreen) {
-            currentOutTex = this.postTexture;
+        if (enableLine) {
+          postPasses.push((inTex, targetFbo) => {
+            gl.bindFramebuffer(gl.FRAMEBUFFER, targetFbo);
+            gl.viewport(0, 0, outW, outH);
+            gl.useProgram(this.progLineEnhance);
+            gl.bindBuffer(gl.ARRAY_BUFFER, this.quadBuf);
+            const aPos = gl.getAttribLocation(this.progLineEnhance, 'aPos');
+            gl.enableVertexAttribArray(aPos);
+            gl.vertexAttribPointer(aPos, 2, gl.FLOAT, false, 0, 0);
+
+            gl.activeTexture(gl.TEXTURE0);
+            gl.bindTexture(gl.TEXTURE_2D, inTex);
+            gl.uniform1i(gl.getUniformLocation(this.progLineEnhance, 'uTex'), 0);
+            gl.uniform2f(gl.getUniformLocation(this.progLineEnhance, 'uTexSize'), outW, outH);
+
+            const lineDarken = Number(cfg.lineDarken) || 0.25;
+            const lineThin   = Number(cfg.lineThin) || 0.18;
+            gl.uniform1f(gl.getUniformLocation(this.progLineEnhance, 'uLineDarken'), lineDarken);
+            gl.uniform1f(gl.getUniformLocation(this.progLineEnhance, 'uLineThin'),   lineThin);
+
+            gl.drawArrays(gl.TRIANGLES, 0, 6);
+          });
+        }
+
+        if (enableBloom) {
+          postPasses.push((inTex, targetFbo) => {
+            gl.bindFramebuffer(gl.FRAMEBUFFER, targetFbo);
+            gl.viewport(0, 0, outW, outH);
+            gl.useProgram(this.progBloom);
+            gl.bindBuffer(gl.ARRAY_BUFFER, this.quadBuf);
+            const aPos = gl.getAttribLocation(this.progBloom, 'aPos');
+            gl.enableVertexAttribArray(aPos);
+            gl.vertexAttribPointer(aPos, 2, gl.FLOAT, false, 0, 0);
+
+            gl.activeTexture(gl.TEXTURE0);
+            gl.bindTexture(gl.TEXTURE_2D, inTex);
+            gl.uniform1i(gl.getUniformLocation(this.progBloom, 'uTex'), 0);
+            gl.uniform2f(gl.getUniformLocation(this.progBloom, 'uTexSize'), outW, outH);
+
+            const bloomStrength = Number(cfg.bloomStrength) || 0.15;
+            gl.uniform1f(gl.getUniformLocation(this.progBloom, 'uBloomStrength'), bloomStrength);
+
+            gl.drawArrays(gl.TRIANGLES, 0, 6);
+          });
+        }
+
+        if (postPasses.length > 0) {
+          this._initPostBuffers(outW, outH);
+          for (let i = 0; i < postPasses.length; i++) {
+            const isLast = (i === postPasses.length - 1);
+            const renderToScreen = isLast && !cfg.splitScreen;
+            const targetFbo = renderToScreen ? null : this.postFbos[this.postIdx];
+
+            postPasses[i](currentOutTex, targetFbo);
+
+            if (!renderToScreen) {
+              currentOutTex = this.postTextures[this.postIdx];
+              this.postIdx = 1 - this.postIdx;
+            }
           }
         } else if (!cfg.splitScreen) {
           gl.bindFramebuffer(gl.FRAMEBUFFER, null);
@@ -1090,6 +1448,12 @@
 
           gl.uniform1f(gl.getUniformLocation(this.progSplit, 'uSplitX'), Number(cfg.splitPosition) || 0.5);
           gl.drawArrays(gl.TRIANGLES, 0, 6);
+        }
+
+        // Black Screen Fix: Only hide underlying video after the first frame has successfully drawn to canvas
+        if (!this._hasDrawnFirstFrame) {
+          this._hasDrawnFirstFrame = true;
+          this.video.style.opacity = '0.001';
         }
       } catch (e) {
         console.warn('[AnimeUpScaler PRO] renderFrame:', e);
@@ -1181,7 +1545,9 @@
 
     updateSplitHandle() {
       if (!cfg.splitScreen || !this.isOn) {
-        if (this.splitHandle) { this.splitHandle.remove(); this.splitHandle = null; }
+        if (this.splitHandle)     { this.splitHandle.remove();     this.splitHandle = null;     }
+        if (this.splitBadgeLeft)  { this.splitBadgeLeft.remove();  this.splitBadgeLeft = null;  }
+        if (this.splitBadgeRight) { this.splitBadgeRight.remove(); this.splitBadgeRight = null; }
         return;
       }
       if (!this.splitHandle) {
@@ -1192,10 +1558,24 @@
         line.style.cssText = 'position:absolute;width:2px;height:100%;background:#fbbf24;box-shadow:0 0 10px #fbbf24;';
         const badge = document.createElement('div');
         badge.style.cssText = 'position:relative;z-index:2;background:#0d1117;border:1px solid #fbbf24;border-radius:14px;padding:3px 8px;font:700 10px system-ui;color:#fbbf24;box-shadow:0 2px 8px rgba(0,0,0,0.6);white-space:nowrap;user-select:none;';
-        badge.textContent = '◀ RAW | 4K ▶';
+        badge.textContent = '◀ ОРИГИНАЛ | НЕЙРОСЕТЬ 4K ▶';
         sh.appendChild(line); sh.appendChild(badge);
         document.documentElement.appendChild(sh);
         this.splitHandle = sh;
+
+        const bLeft = document.createElement('div');
+        bLeft.className = '__au_split_badge_left';
+        bLeft.style.cssText = 'position:fixed;z-index:2147483645;pointer-events:none;user-select:none;background:rgba(10,14,22,0.85);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);border:1px solid rgba(251,191,36,0.45);border-radius:6px;padding:3px 8px;color:#fbbf24;font:700 11px system-ui;box-shadow:0 4px 14px rgba(0,0,0,0.5);white-space:nowrap;';
+        bLeft.textContent = '◀ ОРИГИНАЛ';
+        document.documentElement.appendChild(bLeft);
+        this.splitBadgeLeft = bLeft;
+
+        const bRight = document.createElement('div');
+        bRight.className = '__au_split_badge_right';
+        bRight.style.cssText = 'position:fixed;z-index:2147483645;pointer-events:none;user-select:none;background:rgba(10,14,22,0.85);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);border:1px solid rgba(251,191,36,0.45);border-radius:6px;padding:3px 8px;color:#fbbf24;font:700 11px system-ui;box-shadow:0 4px 14px rgba(0,0,0,0.5);white-space:nowrap;';
+        bRight.textContent = 'НЕЙРОСЕТЬ 4K ▶';
+        document.documentElement.appendChild(bRight);
+        this.splitBadgeRight = bRight;
 
         const onMove = (e) => {
           if (!this.isDraggingSplit) return;
@@ -1204,6 +1584,7 @@
           const ratio = Math.max(0.02, Math.min(0.98, (cx - r.left) / r.width));
           cfg.splitPosition = ratio;
           this._placeSplitFixed(r);
+          this.renderSingleFrame(); // Real-time split drag rendering even on paused video!
         };
         const onUp = () => {
           if (this.isDraggingSplit) {
@@ -1226,6 +1607,8 @@
           window.addEventListener('touchend', onUp);
         });
       }
+      const r = this.video.getBoundingClientRect();
+      this._placeSplitFixed(r);
     }
 
     // Capture current 4K Upscaled Frame to PNG Wallpaper
@@ -1252,11 +1635,13 @@
       document.removeEventListener('fullscreenchange',       this._onFSChange);
       document.removeEventListener('webkitfullscreenchange', this._onFSChange);
       if (this._resizeObs) this._resizeObs.disconnect();
-      this.video.removeEventListener('resize',  this._onVideoResize);
-      this.video.removeEventListener('canplay', this._onCanPlay);
-      this.video.removeEventListener('play',    this._onPlay);
-      this.video.removeEventListener('pause',   this._onPause);
-      this.video.removeEventListener('seeked',  this._onSeeked);
+      this.video.removeEventListener('resize',         this._onVideoResize);
+      this.video.removeEventListener('canplay',        this._onCanPlay);
+      this.video.removeEventListener('loadedmetadata', this._onLoadedMeta);
+      this.video.removeEventListener('loadeddata',     this._onLoadedData);
+      this.video.removeEventListener('play',           this._onPlay);
+      this.video.removeEventListener('pause',          this._onPause);
+      this.video.removeEventListener('seeked',         this._onSeeked);
       for (const p of this.passes) p && p.destroy && p.destroy();
       this.passes = [];
 
@@ -1273,6 +1658,8 @@
           if (this.progChromaRecon) this.gl.deleteProgram(this.progChromaRecon);
           if (this.progTemporal)    this.gl.deleteProgram(this.progTemporal);
           if (this.progCas)         this.gl.deleteProgram(this.progCas);
+          if (this.progLineEnhance) this.gl.deleteProgram(this.progLineEnhance);
+          if (this.progBloom)       this.gl.deleteProgram(this.progBloom);
           if (this.progSplit)       this.gl.deleteProgram(this.progSplit);
           if (this.progBicubic)     this.gl.deleteProgram(this.progBicubic);
           if (this.rawTexture)      this.gl.deleteTexture(this.rawTexture);
@@ -1581,7 +1968,15 @@
   // ─── Video Discovery ────────────────────────────────────────────────────────
   function collectVideos(root, list) {
     if (!root) return;
-    try { for (const v of root.querySelectorAll('video')) list.add(v); } catch (e) {}
+    try {
+      for (const v of root.querySelectorAll('video')) {
+        // Ignore micro-videos / hover preview thumbnails (< 64px)
+        if ((v.offsetWidth > 0 && v.offsetWidth < 64) || (v.offsetHeight > 0 && v.offsetHeight < 64)) {
+          continue;
+        }
+        list.add(v);
+      }
+    } catch (e) {}
     try {
       for (const el of root.querySelectorAll('*')) {
         if (el.shadowRoot) collectVideos(el.shadowRoot, list);
@@ -1607,6 +2002,9 @@
     // Add new
     for (const v of found) {
       if (activeProcessors.has(v)) continue;
+      if ((v.offsetWidth > 0 && v.offsetWidth < 64) || (v.offsetHeight > 0 && v.offsetHeight < 64)) {
+        continue;
+      }
 
       const proc = new VideoProcessor(v);
       activeProcessors.set(v, proc);
@@ -1716,6 +2114,24 @@
       rescanInterval = setInterval(scanForVideos, 3000);
     }
   }, 1000);
+
+  // ─── Background Tab Optimization (0% GPU usage when hidden) ────────────────
+  document.addEventListener('visibilitychange', () => {
+    const hidden = document.hidden;
+    for (const proc of activeProcessors.values()) {
+      if (hidden) {
+        proc._isTabHidden = true;
+      } else {
+        proc._isTabHidden = false;
+        if (proc.isOn && !proc.video.paused && !proc.video.ended && !proc._isLoopActive) {
+          const id = ++proc.renderingId;
+          proc.renderLoop(id);
+        } else if (proc.isOn) {
+          proc.renderSingleFrame();
+        }
+      }
+    }
+  });
 
   loadConfig();
   scanForVideos();

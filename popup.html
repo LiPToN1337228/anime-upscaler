@@ -208,6 +208,81 @@
   .genre-desc { font-size: 9.5px; color: var(--text-dim); line-height: 1.25; }
   .genre-card.span-2 { grid-column: span 2; }
 
+  /* Quick Filter Chips */
+  .quick-chips-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+    margin-bottom: 8px;
+  }
+  .quick-chip {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 7px;
+    padding: 7px 9px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    transition: all 0.18s ease;
+    text-align: left;
+    outline: none;
+    font-family: inherit;
+  }
+  .quick-chip:hover {
+    background: var(--bg-card-hover);
+    border-color: #3b4861;
+  }
+  .chip-main {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .chip-icon {
+    font-size: 13px;
+    display: inline-block;
+  }
+  .chip-name {
+    font-size: 11.5px;
+    font-weight: 700;
+    color: #e2e8f0;
+    letter-spacing: 0.2px;
+  }
+  .chip-badge {
+    font: 700 9px ui-monospace, monospace;
+    padding: 2px 6px;
+    border-radius: 4px;
+    background: #1e293b;
+    color: var(--text-dim);
+    transition: all 0.18s ease;
+  }
+  .quick-chip.active {
+    background: rgba(16, 185, 129, 0.12);
+    border-color: #10b981;
+    box-shadow: 0 0 10px rgba(16, 185, 129, 0.15);
+  }
+  .quick-chip.active .chip-name {
+    color: #34d399;
+  }
+  .quick-chip.active .chip-badge {
+    background: rgba(16, 185, 129, 0.25);
+    color: #34d399;
+    border: 1px solid rgba(16, 185, 129, 0.4);
+  }
+  .quick-chip.active.bloom-chip {
+    background: rgba(6, 182, 212, 0.12);
+    border-color: #06b6d4;
+    box-shadow: 0 0 10px rgba(6, 182, 212, 0.2);
+  }
+  .quick-chip.active.bloom-chip .chip-name {
+    color: #38bdf8;
+  }
+  .quick-chip.active.bloom-chip .chip-badge {
+    background: rgba(6, 182, 212, 0.25);
+    color: #38bdf8;
+    border: 1px solid rgba(6, 182, 212, 0.4);
+  }
+
   /* Tools List */
   .tool-row {
     display: flex;
@@ -279,7 +354,7 @@
       <div class="logo-icon">4K</div>
       <div>
         <div class="title">Anime UpScaler PRO</div>
-        <div class="ver">v3.2.0 · WebGL2 Neural</div>
+        <div class="ver">v3.3.0 · WebGL2 Neural</div>
       </div>
     </div>
     <div class="gpu-badge">
@@ -410,6 +485,32 @@
     </button>
   </div>
 
+  <!-- Quick Filters 2026 -->
+  <div class="section-title">
+    <span>Фильтры 2026</span>
+    <span style="color:#50e3c2;font-size:9.5px;">Quick Shaders</span>
+  </div>
+
+  <div class="quick-chips-grid">
+    <button type="button" class="quick-chip" id="chipLineEnhance" title="Anime Line Art Shaper — Усиление и утоньшение контуров">
+      <input type="checkbox" id="checkLineEnhance" style="display:none;">
+      <div class="chip-main">
+        <span class="chip-icon">✒️</span>
+        <span class="chip-name">Контуры</span>
+      </div>
+      <span class="chip-badge" id="badgeLineEnhance">ВКЛ</span>
+    </button>
+
+    <button type="button" class="quick-chip" id="chipBloom" title="Cinematic Anime Bloom — Кинематографическое свечение">
+      <input type="checkbox" id="checkBloom" style="display:none;">
+      <div class="chip-main">
+        <span class="chip-icon">✨</span>
+        <span class="chip-name">Блум</span>
+      </div>
+      <span class="chip-badge" id="badgeBloom">ВЫКЛ</span>
+    </button>
+  </div>
+
   <!-- Interactive Features -->
   <div class="section-title">Инструменты</div>
 
@@ -462,6 +563,10 @@
     <div class="telem-item">
       <span class="telem-k">Статус GPU</span>
       <span class="telem-v" style="color:#34d399;" id="telGpu">Готов</span>
+    </div>
+    <div class="telem-item span-2" id="telemBatteryItem" style="display: none; grid-column: span 2; flex-direction: row; justify-content: space-between; align-items: center; border-top: 1px dashed #1e293b; padding-top: 4px; margin-top: 2px;">
+      <span class="telem-k">Питание &amp; Батарея:</span>
+      <span class="telem-v" id="telBattery" style="color:#38bdf8;">⚡ Сеть</span>
     </div>
     <div class="telem-item span-2" id="telemDroppedItem" style="display: none; grid-column: span 2; flex-direction: row; justify-content: space-between; align-items: center; border-top: 1px dashed #1e293b; padding-top: 4px; margin-top: 2px;">
       <span class="telem-k">Пропущено кадров:</span>

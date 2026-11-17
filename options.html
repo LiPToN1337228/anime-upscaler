@@ -631,7 +631,7 @@
       <div>
         <span class="brand-title">Anime UpScaler PRO</span>
       </div>
-      <span class="brand-ver">v3.2.0</span>
+      <span class="brand-ver">v3.3.0</span>
     </div>
     <div class="header-badges">
       <div class="status-pill">
@@ -843,6 +843,17 @@
             <option value="1080p">FHD (1920×1080)</option>
           </select>
         </div>
+
+        <div class="control-row">
+          <div class="control-info">
+            <div class="control-label">Энергосберегающий профиль ноутбука (Battery Saver)</div>
+            <div class="control-desc">Автоматически переводит апскейлер в энергоэффективный режим (Turbo / Stream-Eco) при работе от аккумулятора ноутбука, предотвращая нагрев и экономя заряд.</div>
+          </div>
+          <label class="switch">
+            <input type="checkbox" id="checkBatterySaver" checked>
+            <span class="slider"></span>
+          </label>
+        </div>
       </div>
     </section>
 
@@ -920,6 +931,69 @@
             <input type="checkbox" id="checkEnableTemporalStability" checked>
             <span class="slider"></span>
           </label>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">✒️ Anime Line Art Shaper (Усиление контуров)</div>
+
+        <div class="control-row">
+          <div class="control-info">
+            <div class="control-label">Line Art Shaper (Реконструкция контуров туши)</div>
+            <div class="control-desc">Интеллектуальный шейдер контуров для классического и современного аниме. Восстанавливает четкость линий персонажей, устраняя блеклость и ореолы компрессии.</div>
+          </div>
+          <label class="switch">
+            <input type="checkbox" id="checkEnableLineEnhance" checked>
+            <span class="slider"></span>
+          </label>
+        </div>
+
+        <div class="control-row">
+          <div class="control-info">
+            <div class="control-label">Затемнение выцветших линий (Line Darkening)</div>
+            <div class="control-desc">Усиливает глубину черного пигмента контуров, компенсируя выцветание при оцифровке и сжатии.</div>
+          </div>
+          <div class="range-container">
+            <input type="range" id="rangeLineDarken" min="0.0" max="1.0" step="0.05" value="0.35">
+            <span class="range-value" id="valLineDarken">0.35</span>
+          </div>
+        </div>
+
+        <div class="control-row">
+          <div class="control-info">
+            <div class="control-label">Утоньшение размытых контуров (Line Thinning)</div>
+            <div class="control-desc">Деликатно сужает размытые края линий, возвращая эффект филигранной ручной прорисовки манги и сакуги.</div>
+          </div>
+          <div class="range-container">
+            <input type="range" id="rangeLineThin" min="0.0" max="1.0" step="0.05" value="0.20">
+            <span class="range-value" id="valLineThin">0.20</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">✨ Cinematic Anime Bloom (Атмосферное свечение)</div>
+
+        <div class="control-row">
+          <div class="control-info">
+            <div class="control-label">Cinematic Shinkai Atmospheric Diffusion</div>
+            <div class="control-desc">Мягкая кинематографическая диффузия света в эстетике фильмов Макото Синкая. Придает атмосферное сияние магии, солнцу, бликам на волосах и ночным огням.</div>
+          </div>
+          <label class="switch">
+            <input type="checkbox" id="checkEnableBloom">
+            <span class="slider"></span>
+          </label>
+        </div>
+
+        <div class="control-row">
+          <div class="control-info">
+            <div class="control-label">Интенсивность свечения магии и света (Bloom Strength)</div>
+            <div class="control-desc">Регулирует глубину и мягкость рассеиваемого ореола вокруг ярких объектов (от 0.0 до 0.5). Рекомендуется 0.15.</div>
+          </div>
+          <div class="range-container">
+            <input type="range" id="rangeBloomStrength" min="0.0" max="0.5" step="0.01" value="0.15">
+            <span class="range-value" id="valBloomStrength">0.15</span>
+          </div>
         </div>
       </div>
     </section>

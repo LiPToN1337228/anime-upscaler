@@ -11,7 +11,11 @@ if (start === -1 || pos === -1) {
   process.exit(1);
 }
 
-const bundleCore = content.slice(start, pos + 1);
+let bundleCore = content.slice(start, pos + 1);
+bundleCore = bundleCore.replace(
+  'this.inputTexture=_||this.createTexture(x,u)',
+  'this._borrowedInputTexture=!!_,this.inputTexture=_||this.createTexture(x,u)'
+);
 
 const header = `// AnimeSR WebGL2 Neural Shaders & Passes Library
 // Ported, enhanced, and verified for MV3 Chrome / Brave
@@ -35,6 +39,10 @@ const footer = `
   basePassMod.BasePass.prototype.destroy = function() {
     var gl = this.gl;
     if (!gl) return;
+    if (this.inputTexture && !this._borrowedInputTexture) {
+      try { gl.deleteTexture(this.inputTexture); } catch(e) {}
+      this.inputTexture = null;
+    }
     if (this.verticesBuffer) {
       try { gl.deleteBuffer(this.verticesBuffer); } catch(e) {}
       this.verticesBuffer = null;
@@ -46,13 +54,20 @@ const footer = `
     if (this.programs) {
       for (var i = 0; i < this.programs.length; i++) {
         var p = this.programs[i];
-        if (p && p.outputTexture) {
-          try { gl.deleteTexture(p.outputTexture); } catch(e) {}
-          p.outputTexture = null;
+        if (p) {
+          if (p.outputTexture) {
+            try { gl.deleteTexture(p.outputTexture); } catch(e) {}
+            p.outputTexture = null;
+          }
+          if (p.program) {
+            try { gl.deleteProgram(p.program); } catch(e) {}
+            p.program = null;
+          }
         }
       }
       this.programs = [];
     }
+    this.outputTexture = null;
   };
 
   var passes = {

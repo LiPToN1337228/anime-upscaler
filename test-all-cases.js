@@ -29,7 +29,7 @@ try {
   const manifest = JSON.parse(manifestRaw);
 
   assert(manifest.manifest_version === 3, 'Manifest is valid MV3', `version ${manifest.manifest_version}`);
-  assert(manifest.version === '3.2.0', 'Version matches 3.2.0', manifest.version);
+  assert(manifest.version === '3.3.0', 'Version matches 3.3.0', manifest.version);
   assert(manifest.options_ui && manifest.options_ui.page === 'options.html', 'Options UI page configured', manifest.options_ui.page);
   assert(manifest.content_scripts && manifest.content_scripts[0].all_frames === true, 'Content script runs in all_frames for iframe support');
 
@@ -139,6 +139,8 @@ const FS_CAS = extractShader(contentCode, 'FS_CAS');
 const FS_BICUBIC = extractShader(contentCode, 'FS_BICUBIC');
 const FS_CHROMA = extractShader(contentCode, 'FS_CHROMA_RECONSTRUCT');
 const FS_TEMPORAL = extractShader(contentCode, 'FS_TEMPORAL_STABILITY');
+const FS_LINE = extractShader(contentCode, 'FS_LINE_ENHANCE');
+const FS_BLOOM = extractShader(contentCode, 'FS_BLOOM');
 
 assert(VS_QUAD && VS_QUAD.includes('gl_Position'), 'VS_QUAD shader defined & valid', `${VS_QUAD.length} chars`);
 assert(FS_SPLIT && FS_SPLIT.includes('uSplitX'), 'FS_SPLIT (A/B Comparison) shader valid', `${FS_SPLIT.length} chars`);
@@ -146,6 +148,8 @@ assert(FS_CAS && FS_CAS.includes('applyVibrance') && FS_CAS.includes('uSharpness
 assert(FS_BICUBIC && FS_BICUBIC.includes('sampleBicubic'), 'FS_BICUBIC Catmull-Rom shader valid', `${FS_BICUBIC.length} chars`);
 assert(FS_CHROMA && FS_CHROMA.includes('rgb2yuv') && FS_CHROMA.includes('yuv2rgb'), 'FS_CHROMA_RECONSTRUCT (YUV420p Chroma Fix) shader valid', `${FS_CHROMA.length} chars`);
 assert(FS_TEMPORAL && FS_TEMPORAL.includes('uMotionThresh') && FS_TEMPORAL.includes('uBlend'), 'FS_TEMPORAL_STABILITY (Anti-Flicker) shader valid', `${FS_TEMPORAL.length} chars`);
+assert(FS_LINE && FS_LINE.includes('uLineDarken') && FS_LINE.includes('uLineThin'), 'FS_LINE_ENHANCE (Line Art Shaper) shader valid', `${FS_LINE.length} chars`);
+assert(FS_BLOOM && FS_BLOOM.includes('uBloomStrength'), 'FS_BLOOM (Cinema Diffusion) shader valid', `${FS_BLOOM.length} chars`);
 
 // ── TEST SUITE 3: Anime4K Engine Passes & Presets ─────────────────────────────
 console.log('\n[Suite 3] Anime4K Engine & Preset Chains');
@@ -242,6 +246,48 @@ filesToValidate.forEach(file => {
     assert(false, `Syntax error in ${file}`, err.message);
   }
 });
+
+// ── TEST SUITE 6: UI, Settings & Telemetry Invariants ─────────────────────────
+console.log('\n[Suite 6] UI, Settings & Telemetry Invariants');
+try {
+  const bkg = fs.readFileSync(path.join(__dirname, 'background.js'), 'utf8');
+  const optHtml = fs.readFileSync(path.join(__dirname, 'options.html'), 'utf8');
+  const optJs = fs.readFileSync(path.join(__dirname, 'options.js'), 'utf8');
+  const popHtml = fs.readFileSync(path.join(__dirname, 'popup.html'), 'utf8');
+  const popJs = fs.readFileSync(path.join(__dirname, 'popup.js'), 'utf8');
+
+  // Background DEFAULTS
+  assert(bkg.includes('enableLineEnhance: true'), 'background.js: enableLineEnhance default true');
+  assert(bkg.includes('lineDarken: 0.35'), 'background.js: lineDarken default 0.35');
+  assert(bkg.includes('lineThin: 0.20'), 'background.js: lineThin default 0.20');
+  assert(bkg.includes('enableBloom: false'), 'background.js: enableBloom default false');
+  assert(bkg.includes('bloomStrength: 0.15'), 'background.js: bloomStrength default 0.15');
+  assert(bkg.includes('batterySaver: true'), 'background.js: batterySaver default true');
+
+  // Options HTML elements
+  assert(optHtml.includes('id="checkEnableLineEnhance"'), 'options.html: checkEnableLineEnhance toggle present');
+  assert(optHtml.includes('id="rangeLineDarken"') && optHtml.includes('id="valLineDarken"'), 'options.html: lineDarken slider + live badge');
+  assert(optHtml.includes('id="rangeLineThin"') && optHtml.includes('id="valLineThin"'), 'options.html: lineThin slider + live badge');
+  assert(optHtml.includes('id="checkEnableBloom"'), 'options.html: checkEnableBloom toggle present');
+  assert(optHtml.includes('id="rangeBloomStrength"') && optHtml.includes('id="valBloomStrength"'), 'options.html: bloomStrength slider + live badge');
+  assert(optHtml.includes('id="checkBatterySaver"'), 'options.html: checkBatterySaver toggle in performance tab');
+
+  // Options JS binds
+  assert(optJs.includes('enableLineEnhance: true') && optJs.includes('batterySaver: true'), 'options.js: DEFAULTS registered');
+  assert(optJs.includes('$checkEnableLineEnhance') && optJs.includes('$checkBatterySaver'), 'options.js: DOM elements wired');
+
+  // Popup HTML chips & telemetry
+  assert(popHtml.includes('id="chipLineEnhance"'), 'popup.html: quick chip ✒️ Line Shaper present');
+  assert(popHtml.includes('id="chipBloom"'), 'popup.html: quick chip ✨ Bloom present');
+  assert(popHtml.includes('id="telemBatteryItem"') && popHtml.includes('id="telBattery"'), 'popup.html: battery telemetry row present');
+
+  // Popup JS logic
+  assert(popJs.includes('enableLineEnhance: true') && popJs.includes('batterySaver: true'), 'popup.js: DEFAULTS registered');
+  assert(popJs.includes('navigator.getBattery'), 'popup.js: navigator.getBattery API detection');
+  assert(popJs.includes('$chipLineEnhance.addEventListener'), 'popup.js: quick chip event listeners wired');
+} catch (err) {
+  assert(false, 'UI & Settings validation', err.message);
+}
 
 // ── FINAL SUMMARY ─────────────────────────────────────────────────────────────
 console.log('\n======================================================');

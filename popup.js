@@ -21,6 +21,12 @@
     widgetCollapsed: false,
     enableChromaRecon: true,
     enableTemporalStability: true,
+    enableLineEnhance: true,
+    lineDarken: 0.35,
+    lineThin: 0.20,
+    enableBloom: false,
+    bloomStrength: 0.15,
+    batterySaver: true,
     genrePreset: 'auto',
     hosts: {}
   };
@@ -34,6 +40,14 @@
   const $checkSplit = document.getElementById('checkSplit');
   const $checkHud = document.getElementById('checkHud');
 
+  // Quick Shaders (Line Shaper & Bloom)
+  const $chipLineEnhance = document.getElementById('chipLineEnhance');
+  const $checkLineEnhance = document.getElementById('checkLineEnhance');
+  const $badgeLineEnhance = document.getElementById('badgeLineEnhance');
+  const $chipBloom = document.getElementById('chipBloom');
+  const $checkBloom = document.getElementById('checkBloom');
+  const $badgeBloom = document.getElementById('badgeBloom');
+
   const $telRes = document.getElementById('telRes');
   const $telFps = document.getElementById('telFps');
   const $telMs = document.getElementById('telMs');
@@ -41,6 +55,45 @@
   const $gpuBadgeText = document.getElementById('gpuBadgeText');
   const $telemDroppedItem = document.getElementById('telemDroppedItem');
   const $telDropped = document.getElementById('telDropped');
+  const $telemBatteryItem = document.getElementById('telemBatteryItem');
+  const $telBattery = document.getElementById('telBattery');
+
+  // Dynamic Battery / Power Telemetry
+  function initBatteryTelemetry() {
+    if (!$telBattery || !$telemBatteryItem) return;
+
+    if (typeof navigator.getBattery === 'function') {
+      navigator.getBattery().then((battery) => {
+        function updateBatteryUI() {
+          const levelPct = Math.round((battery.level || 0) * 100);
+          const isCharging = !!battery.charging;
+
+          $telemBatteryItem.style.display = 'flex';
+
+          if (isCharging) {
+            $telBattery.textContent = `⚡ Сеть (${levelPct}%)`;
+            $telBattery.style.color = '#34d399';
+          } else {
+            $telBattery.textContent = `🔋 ${levelPct}%`;
+            if (levelPct <= 20) {
+              $telBattery.style.color = '#f87171';
+            } else if (levelPct <= 40) {
+              $telBattery.style.color = '#fbbf24';
+            } else {
+              $telBattery.style.color = '#38bdf8';
+            }
+          }
+        }
+
+        updateBatteryUI();
+
+        battery.addEventListener('chargingchange', updateBatteryUI);
+        battery.addEventListener('levelchange', updateBatteryUI);
+      }).catch((e) => {
+        console.warn('[AnimeUpScaler PRO] Battery API error:', e);
+      });
+    }
+  }
 
   // Dynamically detect GPU name from WebGL
   function detectGpuBadge() {
@@ -157,6 +210,20 @@
     $checkSplit.checked = !!cfg.splitScreen;
     $checkHud.checked = !!cfg.showHud;
 
+    // 5. Quick Shaders (Line Shaper & Bloom)
+    const isLineOn = cfg.enableLineEnhance !== false;
+    if ($chipLineEnhance) $chipLineEnhance.classList.toggle('active', isLineOn);
+    if ($checkLineEnhance) $checkLineEnhance.checked = isLineOn;
+    if ($badgeLineEnhance) $badgeLineEnhance.textContent = isLineOn ? 'ВКЛ' : 'ВЫКЛ';
+
+    const isBloomOn = !!cfg.enableBloom;
+    if ($chipBloom) {
+      $chipBloom.classList.toggle('active', isBloomOn);
+      $chipBloom.classList.toggle('bloom-chip', isBloomOn);
+    }
+    if ($checkBloom) $checkBloom.checked = isBloomOn;
+    if ($badgeBloom) $badgeBloom.textContent = isBloomOn ? 'ВКЛ' : 'ВЫКЛ';
+
     queryTabStatus();
   }
 
@@ -198,6 +265,33 @@
     saveConfig({ showHud: $checkHud.checked });
   });
 
+  // Quick Shaders Events
+  if ($chipLineEnhance) {
+    $chipLineEnhance.addEventListener('click', (e) => {
+      if (e.target === $checkLineEnhance) return;
+      saveConfig({ enableLineEnhance: !(cfg.enableLineEnhance !== false) });
+    });
+  }
+  if ($checkLineEnhance) {
+    $checkLineEnhance.addEventListener('change', (e) => {
+      e.stopPropagation();
+      saveConfig({ enableLineEnhance: $checkLineEnhance.checked });
+    });
+  }
+
+  if ($chipBloom) {
+    $chipBloom.addEventListener('click', (e) => {
+      if (e.target === $checkBloom) return;
+      saveConfig({ enableBloom: !cfg.enableBloom });
+    });
+  }
+  if ($checkBloom) {
+    $checkBloom.addEventListener('change', (e) => {
+      e.stopPropagation();
+      saveConfig({ enableBloom: $checkBloom.checked });
+    });
+  }
+
   const $btnOpenOptions = document.getElementById('btnOpenOptions');
   if ($btnOpenOptions) {
     $btnOpenOptions.addEventListener('click', () => {
@@ -228,6 +322,7 @@
     chrome.storage.local.get(DEFAULTS, (v) => {
       cfg = { ...DEFAULTS, ...v };
       render();
+      initBatteryTelemetry();
       setInterval(queryTabStatus, 1000);
     });
   });
