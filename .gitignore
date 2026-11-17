@@ -10,3 +10,4 @@ npm-debug.log*
 # Scratch and temp files
 scratch/
 .temp/
+*.zip
