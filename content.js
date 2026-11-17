@@ -843,6 +843,10 @@
     _placeHudFixed(r) {
       const h = this.hudEl;
       if (!h) return;
+      h.style.bottom = '';
+      h.style.right  = '';
+      h.style.height = 'auto';
+      h.style.maxHeight = '32px';
       const pos = cfg.hudPosition || 'bottom-left';
       const W = h.offsetWidth || 240;
       if (pos === 'top-right')         { h.style.left = (r.right - W - 14) + 'px'; h.style.top = (r.top + 14) + 'px'; }
@@ -1000,6 +1004,10 @@
 
       if (this.hudEl) {
         this.hudEl.style.position = 'fixed';
+        this.hudEl.style.bottom   = '';
+        this.hudEl.style.right    = '';
+        this.hudEl.style.height   = 'auto';
+        this.hudEl.style.maxHeight = '32px';
         document.documentElement.appendChild(this.hudEl);
       }
       if (this.splitHandle) {
@@ -1504,6 +1512,7 @@
         h.className = '__au_pro_hud';
         h.style.cssText = [
           'position:fixed', 'z-index:2147483645', 'pointer-events:none', 'user-select:none',
+          'box-sizing:border-box', 'height:auto!important', 'max-height:32px', 'overflow:hidden',
           'background:rgba(10,14,22,0.90)', 'backdrop-filter:blur(10px)', '-webkit-backdrop-filter:blur(10px)',
           'border:1px solid rgba(80,227,194,0.35)', 'border-radius:8px',
           'color:#e2e8f0', 'font:600 11px/1.5 ui-monospace,SFMono-Regular,Consolas,monospace',
@@ -1805,9 +1814,11 @@
         if (proc.isOn) {
           proc.stop();
           this.updateState(false);
+          saveConfigPatch({ enabled: false });
         } else {
           proc.start();
           this.updateState(true);
+          saveConfigPatch({ enabled: true });
         }
       });
 
@@ -2087,15 +2098,16 @@
         }
         sendResponse({ ok: true });
       } else if (msg.op === 'GET_STATUS') {
-        let res = '–', fps = 0, ms = 0, dropped = 0;
+        let res = '–', fps = 0, ms = 0, dropped = 0, isRunning = false;
         for (const p of activeProcessors.values()) {
           if (p.isOn && p.video) {
+            isRunning = true;
             res = `${p.video.videoWidth}x${p.video.videoHeight}→${p.canvas.width}x${p.canvas.height}`;
             fps = p.actualFps; ms = p.emaMs; dropped = p.droppedFrames || 0; break;
           }
         }
         sendResponse({
-          ok: true, active: isSiteActive(), mode: getEffectiveMode(),
+          ok: true, active: isRunning || isSiteActive(), isRunning, mode: getEffectiveMode(),
           videoCount: activeProcessors.size, resolution: res, fps, renderMs: ms, droppedFrames: dropped
         });
       }

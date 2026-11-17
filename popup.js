@@ -161,8 +161,18 @@
       $telRes.textContent = res.resolution || '–';
       $telFps.textContent = res.fps ? `${res.fps} FPS` : '–';
       $telMs.textContent = res.renderMs ? `${res.renderMs.toFixed(1)} ms` : '–';
-      $telGpu.textContent = res.active ? 'Активен (RTX)' : 'Пауза';
-      $telGpu.style.color = res.active ? '#34d399' : '#fbbf24';
+      
+      const isActuallyActive = !!(res.active || res.isRunning);
+      $telGpu.textContent = isActuallyActive ? 'Активен (GPU)' : 'Пауза';
+      $telGpu.style.color = isActuallyActive ? '#34d399' : '#fbbf24';
+
+      // Keep popup Master Button in sync with real video upscaling state
+      $btnMaster.classList.toggle('off', !isActuallyActive);
+      $btnMasterText.textContent = isActuallyActive ? 'АПСКЕЙЛЕР АКТИВЕН' : 'АПСКЕЙЛЕР ВЫКЛЮЧЕН';
+      if (isActuallyActive && cfg.enabled === false) {
+        cfg.enabled = true;
+        chrome.storage.local.set({ enabled: true });
+      }
 
       if ($telemDroppedItem && $telDropped) {
         if (typeof res.droppedFrames === 'number' || (res.droppedFrames !== undefined && res.droppedFrames !== null)) {
