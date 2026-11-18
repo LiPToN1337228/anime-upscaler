@@ -125,7 +125,20 @@
       });
       chrome.storage.onChanged.addListener((changes, area) => {
         if (area !== 'local') return;
-        for (const k of Object.keys(changes)) cfg[k] = changes[k].newValue;
+        const keys = Object.keys(changes);
+        for (const k of keys) cfg[k] = changes[k].newValue;
+
+        // Zero-lag fast path: if only cosmetic UI flags changed, update widgets directly without touching WebGL
+        const isOnlyUI = keys.every(k => k === 'widgetCollapsed' || k === 'autoHideUI' || k === 'autoHideDelay' || k === 'hudPosition' || k === 'buttonStyle');
+        if (isOnlyUI) {
+          if (changes.widgetCollapsed !== undefined) {
+            for (const w of playerWidgets.values()) {
+              w._applyCollapseVisuals(!!cfg.widgetCollapsed);
+            }
+          }
+          return;
+        }
+
         if (!isSiteAllowed()) {
           purgeDOM();
         }
@@ -942,6 +955,14 @@
 
       this._mountCanvas();
 
+      // Self-healing Fullscreen state synchronization
+      const isActuallyFS = !!(document.fullscreenElement || document.webkitFullscreenElement);
+      if (this._inFS && !isActuallyFS) {
+        this._exitFullscreen();
+      } else if (!this._inFS && isActuallyFS) {
+        this._enterFullscreen(document.fullscreenElement || document.webkitFullscreenElement);
+      }
+
       const vR = v.getBoundingClientRect();
       const pR = p.getBoundingClientRect();
       const visible = vR.width > 4 && vR.height > 4;
@@ -961,23 +982,33 @@
         c.style.display   = 'none';
       }
 
-      if (this.hudEl)       this._placeHudFixed(vR);
+      if (this.hudEl && !this._inFS) {
+        if (this.hudEl.parentElement !== document.documentElement) {
+          document.documentElement.appendChild(this.hudEl);
+        }
+        this._placeHudFixed(vR);
+      }
       if (this.splitHandle) this._placeSplitFixed(vR);
     }
 
     _placeHudFixed(r) {
       const h = this.hudEl;
-      if (!h) return;
-      h.style.bottom = '';
-      h.style.right  = '';
-      h.style.height = 'auto';
-      h.style.maxHeight = '32px';
+      if (!h || this._inFS) return;
+      h.style.position  = 'fixed';
+      h.style.bottom    = '';
+      h.style.right     = '';
+      h.style.width     = 'max-content';
+      h.style.maxWidth  = 'max-content';
+      h.style.minWidth  = '0';
+      h.style.height    = '28px';
+      h.style.minHeight = '28px';
+      h.style.maxHeight = '28px';
       const pos = cfg.hudPosition || 'bottom-left';
       const W = h.offsetWidth || 240;
       if (pos === 'top-right')         { h.style.left = (r.right - W - 14) + 'px'; h.style.top = (r.top + 14) + 'px'; }
-      else if (pos === 'bottom-right') { h.style.left = (r.right - W - 14) + 'px'; h.style.top = (r.bottom - 46) + 'px'; }
+      else if (pos === 'bottom-right') { h.style.left = (r.right - W - 14) + 'px'; h.style.top = (r.bottom - 42) + 'px'; }
       else if (pos === 'top-left')     { h.style.left = (r.left + 14) + 'px'; h.style.top = (r.top + 14) + 'px'; }
-      else /* bottom-left */           { h.style.left = (r.left + 14) + 'px'; h.style.top = (r.bottom - 46) + 'px'; }
+      else /* bottom-left */           { h.style.left = (r.left + 14) + 'px'; h.style.top = (r.bottom - 42) + 'px'; }
     }
 
     _placeSplitFixed(r) {
@@ -1128,11 +1159,15 @@
       this._mountCanvas();
 
       if (this.hudEl) {
-        this.hudEl.style.position = 'fixed';
-        this.hudEl.style.bottom   = '';
-        this.hudEl.style.right    = '';
-        this.hudEl.style.height   = 'auto';
-        this.hudEl.style.maxHeight = '32px';
+        this.hudEl.style.position  = 'fixed';
+        this.hudEl.style.bottom    = '';
+        this.hudEl.style.right     = '';
+        this.hudEl.style.width     = 'max-content';
+        this.hudEl.style.maxWidth  = 'max-content';
+        this.hudEl.style.minWidth  = '0';
+        this.hudEl.style.height    = '28px';
+        this.hudEl.style.minHeight = '28px';
+        this.hudEl.style.maxHeight = '28px';
         document.documentElement.appendChild(this.hudEl);
       }
       if (this.splitHandle) {
@@ -1160,10 +1195,17 @@
     _setHudAbsoluteCorner() {
       if (!this.hudEl) return;
       const pos = cfg.hudPosition || 'bottom-left';
-      this.hudEl.style.left   = '';
-      this.hudEl.style.top    = '';
-      this.hudEl.style.right  = '';
-      this.hudEl.style.bottom = '';
+      this.hudEl.style.position  = 'absolute';
+      this.hudEl.style.left      = '';
+      this.hudEl.style.top       = '';
+      this.hudEl.style.right     = '';
+      this.hudEl.style.bottom    = '';
+      this.hudEl.style.width     = 'max-content';
+      this.hudEl.style.maxWidth  = 'max-content';
+      this.hudEl.style.minWidth  = '0';
+      this.hudEl.style.height    = '28px';
+      this.hudEl.style.minHeight = '28px';
+      this.hudEl.style.maxHeight = '28px';
       if (pos === 'top-right')         { this.hudEl.style.right = '14px'; this.hudEl.style.top    = '14px'; }
       else if (pos === 'bottom-right') { this.hudEl.style.right = '14px'; this.hudEl.style.bottom = '64px'; }
       else if (pos === 'top-left')     { this.hudEl.style.left  = '14px'; this.hudEl.style.top    = '14px'; }
@@ -1179,9 +1221,24 @@
       return eff;
     }
 
-    rebuildPasses() {
+    getShaderFingerprint() {
+      const mode = this.getActiveModeKey();
+      const v = this.video;
+      const vw = v ? v.videoWidth : 0;
+      const vh = v ? v.videoHeight : 0;
+      return `${mode}_${vw}x${vh}_${!!cfg.splitScreen}`;
+    }
+
+    rebuildPasses(force = false) {
       const gl = this.gl, v = this.video;
       if (!gl || !v || !v.videoWidth || !v.videoHeight) return;
+
+      const fp = this.getShaderFingerprint();
+      if (!force && this._lastShaderFingerprint === fp && this.passes.length > 0) {
+        return; // Zero-lag cache hit: pipeline already compiled and optimal!
+      }
+      this._lastShaderFingerprint = fp;
+
       for (const p of this.passes) p && p.destroy && p.destroy();
       this.passes = [];
       this.isFirstTemporalFrame = true;
@@ -1665,12 +1722,15 @@
         h.className = '__au_pro_hud';
         h.style.cssText = [
           'position:fixed', 'z-index:2147483645', 'pointer-events:none', 'user-select:none',
-          'box-sizing:border-box', 'height:auto!important', 'max-height:32px', 'overflow:hidden',
-          'background:rgba(10,14,22,0.90)', 'backdrop-filter:blur(10px)', '-webkit-backdrop-filter:blur(10px)',
+          'box-sizing:border-box',
+          'width:max-content!important', 'max-width:max-content!important', 'min-width:0!important',
+          'height:28px!important', 'min-height:28px!important', 'max-height:28px!important',
+          'overflow:hidden',
+          'background:rgba(10,14,22,0.92)', 'backdrop-filter:blur(10px)', '-webkit-backdrop-filter:blur(10px)',
           'border:1px solid rgba(80,227,194,0.35)', 'border-radius:8px',
-          'color:#e2e8f0', 'font:600 11px/1.5 ui-monospace,SFMono-Regular,Consolas,monospace',
-          'padding:4px 10px', 'box-shadow:0 4px 20px rgba(0,0,0,0.6)',
-          'display:flex', 'align-items:center', 'gap:7px', 'white-space:nowrap',
+          'color:#e2e8f0', 'font:600 11px/28px ui-monospace,SFMono-Regular,Consolas,monospace',
+          'padding:0 10px', 'box-shadow:0 4px 16px rgba(0,0,0,0.6)',
+          'display:inline-flex', 'align-items:center', 'gap:7px', 'white-space:nowrap',
           'transition:opacity 0.25s ease'
         ].join(';');
         document.documentElement.appendChild(h);
@@ -1688,7 +1748,7 @@
       const v     = this.video;
       const res   = v.videoWidth ? `${v.videoWidth}→${this.canvas.width}` : '–';
       const ms    = this.emaMs.toFixed(1);
-      const dot   = `<span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:#50e3c2;box-shadow:0 0 8px #50e3c2"></span>`;
+      const dot   = `<span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:#10b981;border:1px solid rgba(255,255,255,0.4);flex-shrink:0;"></span>`;
 
       this.hudEl.innerHTML = `
         ${dot}
@@ -1899,21 +1959,24 @@
         'display:flex',
         'align-items:center',
         'gap:6px',
-        'background:rgba(12,18,28,0.88)',
-        'backdrop-filter:blur(12px)',
-        '-webkit-backdrop-filter:blur(12px)',
-        'border:1px solid rgba(255,255,255,0.14)',
+        'background:rgba(10,14,22,0.92)',
+        'backdrop-filter:blur(16px)',
+        '-webkit-backdrop-filter:blur(16px)',
+        'border:1px solid rgba(255,255,255,0.15)',
         'border-radius:24px',
-        'padding:4px',
-        'box-shadow:0 4px 20px rgba(0,0,0,0.5)',
-        'transition:opacity 0.28s ease, transform 0.22s cubic-bezier(0.16,1,0.3,1), width 0.22s ease',
+        'padding:4px 6px',
+        'box-shadow:0 4px 20px rgba(0,0,0,0.6)',
+        'transition:opacity 0.2s ease, transform 0.18s cubic-bezier(0.16,1,0.3,1)',
         'user-select:none',
         'opacity:0',
         'pointer-events:none',
-        'white-space:nowrap'
+        'white-space:nowrap',
+        'box-sizing:border-box',
+        'contain:paint layout',
+        'will-change:transform, opacity'
       ].join(';');
 
-      // In collapsed mode: clicking the collapsed pill expands the widget!
+      // In collapsed mode: clicking the collapsed circle expands the widget!
       w.addEventListener('click', (e) => {
         if (this.isCollapsed) {
           e.stopPropagation();
@@ -1926,15 +1989,17 @@
       const btnAction = document.createElement('div');
       btnAction.className = '__au_widget_main_btn';
       btnAction.style.cssText = [
-        'display:flex', 'align-items:center', 'gap:5px',
+        'display:flex', 'align-items:center', 'justify-content:center', 'gap:5px',
         'padding:6px 14px',
-        'background:linear-gradient(135deg,#f59e0b,#d97706)',
-        'color:#0d0d0d', 'font:700 13px/1 system-ui,-apple-system,sans-serif',
+        'background:linear-gradient(135deg,#10b981,#059669)',
+        'color:#ffffff', 'font:700 13px/1 system-ui,-apple-system,sans-serif',
         'border-radius:18px', 'cursor:pointer',
-        'box-shadow:0 2px 12px rgba(245,158,11,0.4)',
-        'transition:all 0.15s ease'
+        'box-shadow:0 4px 14px rgba(16,185,129,0.35), inset 0 1px 0 rgba(255,255,255,0.25)',
+        'border:1px solid rgba(52,211,153,0.35)',
+        'transition:transform 0.15s ease, background 0.15s ease, box-shadow 0.15s ease',
+        'box-sizing:border-box'
       ].join(';');
-      btnAction.innerHTML = `<span style="font-size:14px">⚡</span><span>Улучшить</span>`;
+      btnAction.innerHTML = `<span style="font-size:14px">✨</span><span>4K ON</span>`;
       btnAction.addEventListener('click', (e) => {
         e.stopPropagation();
         if (this.isCollapsed) return;
@@ -2130,7 +2195,7 @@
 
       // Section 1: Modes (1-click switching)
       const headerModes = document.createElement('div');
-      headerModes.style.cssText = 'font-size:10px;font-weight:700;color:#94a3b8;letter-spacing:0.05em;text-transform:uppercase;margin-bottom:6px;padding:0 4px;';
+      headerModes.style.cssText = 'font-size:11px;font-weight:700;color:#94a3b8;letter-spacing:0.05em;text-transform:uppercase;margin-bottom:6px;padding:0 4px;';
       headerModes.textContent = 'Режимы апскейла';
       this.quickMenu.appendChild(headerModes);
 
@@ -2148,14 +2213,14 @@
         const isActive = (effectiveMode === m.id);
         item.style.cssText = [
           'display:flex', 'align-items:center', 'justify-content:space-between',
-          'padding:6px 8px', 'border-radius:8px', 'cursor:pointer',
+          'padding:6px 10px', 'border-radius:8px', 'cursor:pointer',
           'font-size:12px', 'margin-bottom:3px', 'transition:all 0.15s ease',
           isActive
-            ? 'background:rgba(245,158,11,0.2);border:1px solid rgba(245,158,11,0.5);color:#fbbf24;font-weight:600'
+            ? 'background:rgba(16,185,129,0.16);border:1px solid rgba(16,185,129,0.45);color:#34d399;font-weight:600'
             : 'background:rgba(255,255,255,0.03);border:1px solid transparent;color:#cbd5e1'
         ].join(';');
 
-        item.innerHTML = `<span>${m.label}</span>${isActive ? '<span style="color:#fbbf24;font-weight:700">✓</span>' : ''}`;
+        item.innerHTML = `<span>${m.label}</span>${isActive ? '<span style="color:#10b981;font-weight:700">✓</span>' : ''}`;
 
         item.addEventListener('mouseenter', () => {
           if (!isActive) {
@@ -2184,7 +2249,7 @@
 
       // Section 2: Quick Toggles
       const headerToggles = document.createElement('div');
-      headerToggles.style.cssText = 'font-size:10px;font-weight:700;color:#94a3b8;letter-spacing:0.05em;text-transform:uppercase;margin-top:10px;margin-bottom:6px;padding:0 4px;';
+      headerToggles.style.cssText = 'font-size:11px;font-weight:700;color:#94a3b8;letter-spacing:0.05em;text-transform:uppercase;margin-top:10px;margin-bottom:6px;padding:0 4px;';
       headerToggles.textContent = 'Быстрые эффекты';
       this.quickMenu.appendChild(headerToggles);
 
@@ -2342,6 +2407,10 @@
 
     _applyCollapseVisuals(collapsed) {
       if (!this.el) return;
+      this.isCollapsed = !!collapsed;
+      const proc = activeProcessors.get(this.video);
+      const on = proc && proc.isOn;
+
       if (collapsed) {
         if (this.btnMode)     this.btnMode.style.display = 'none';
         if (this.btnSnapshot) this.btnSnapshot.style.display = 'none';
@@ -2349,40 +2418,67 @@
         if (this.btnCollapse) this.btnCollapse.style.display = 'none';
         if (this.quickMenu)   this.quickMenu.style.display = 'none';
         this.isMenuOpen = false;
-        this.btnAction.style.padding = '6px 10px';
-        const proc = activeProcessors.get(this.video);
-        const on = proc && proc.isOn;
-        this.btnAction.innerHTML = on
-          ? `<span style="font-size:14px">✨</span>`
-          : `<span style="font-size:14px">⚡</span>`;
+
+        // Perfect 1:1 circle (36px x 36px)
+        this.el.style.width = '36px';
+        this.el.style.height = '36px';
+        this.el.style.minWidth = '36px';
+        this.el.style.minHeight = '36px';
+        this.el.style.maxWidth = '36px';
+        this.el.style.maxHeight = '36px';
         this.el.style.borderRadius = '50%';
-        this.el.style.padding = '3px';
-        this.el.title = 'Нажмите, чтобы развернуть Anime UpScaler';
+        this.el.style.aspectRatio = '1 / 1';
+        this.el.style.padding = '0';
+        this.el.style.gap = '0';
+        this.el.style.justifyContent = 'center';
+        this.el.style.cursor = 'pointer';
+        this.el.title = 'Нажмите, чтобы развернуть Anime UpScaler PRO';
+
+        this.btnAction.style.width = '100%';
+        this.btnAction.style.height = '100%';
+        this.btnAction.style.padding = '0';
+        this.btnAction.style.margin = '0';
+        this.btnAction.style.borderRadius = '50%';
+        this.btnAction.style.aspectRatio = '1 / 1';
+        this.btnAction.style.display = 'flex';
+        this.btnAction.style.alignItems = 'center';
+        this.btnAction.style.justifyContent = 'center';
       } else {
         if (this.btnMode)     this.btnMode.style.display = 'flex';
         if (this.btnSnapshot) this.btnSnapshot.style.display = 'flex';
         if (this.btnSettings) this.btnSettings.style.display = 'flex';
         if (this.btnCollapse) this.btnCollapse.style.display = 'flex';
-        this.btnAction.style.padding = '6px 14px';
-        const proc = activeProcessors.get(this.video);
-        const on = proc && proc.isOn;
-        this.btnAction.innerHTML = on
-          ? `<span style="font-size:14px">✨</span><span>4K ON</span>`
-          : `<span style="font-size:14px">⚡</span><span>Улучшить</span>`;
-        const mode = getEffectiveMode();
-        if (this.btnMode) {
-          this.btnMode.textContent = MODE_LABELS[mode] || mode;
-        }
+
+        // Expanded glassmorphic capsule
+        this.el.style.width = 'auto';
+        this.el.style.height = 'auto';
+        this.el.style.minWidth = 'unset';
+        this.el.style.minHeight = 'unset';
+        this.el.style.maxWidth = 'unset';
+        this.el.style.maxHeight = 'unset';
         this.el.style.borderRadius = '24px';
-        this.el.style.padding = '4px';
+        this.el.style.aspectRatio = 'auto';
+        this.el.style.padding = '4px 6px';
+        this.el.style.gap = '6px';
+        this.el.style.justifyContent = 'flex-start';
+        this.el.style.cursor = 'default';
         this.el.title = '';
+
+        this.btnAction.style.width = 'auto';
+        this.btnAction.style.height = 'auto';
+        this.btnAction.style.padding = '6px 14px';
+        this.btnAction.style.borderRadius = '18px';
       }
+      this.updateState(on);
     }
 
     toggleCollapse() {
       this.isCollapsed = !this.isCollapsed;
-      saveConfigPatch({ widgetCollapsed: this.isCollapsed });
+      cfg.widgetCollapsed = this.isCollapsed;
       this._applyCollapseVisuals(this.isCollapsed);
+      try {
+        chrome.storage.local.set({ widgetCollapsed: this.isCollapsed });
+      } catch (e) {}
     }
 
     updateState(isOn) {
@@ -2390,19 +2486,54 @@
       if (this.btnMode) {
         this.btnMode.textContent = MODE_LABELS[mode] || mode;
       }
-      if (isOn) {
-        this.btnAction.innerHTML = this.isCollapsed
-          ? `<span style="font-size:14px">✨</span>`
-          : `<span style="font-size:14px">✨</span><span>4K ON</span>`;
-        this.btnAction.style.background = 'linear-gradient(135deg,#10b981,#059669)';
-        this.btnAction.style.boxShadow = '0 2px 14px rgba(16,185,129,0.4)';
+
+      if (this.isCollapsed) {
+        this.btnAction.style.width = '100%';
+        this.btnAction.style.height = '100%';
+        this.btnAction.style.padding = '0';
+        this.btnAction.style.borderRadius = '50%';
+        this.btnAction.style.display = 'flex';
+        this.btnAction.style.alignItems = 'center';
+        this.btnAction.style.justifyContent = 'center';
+
+        if (isOn) {
+          // Green when upscale ON
+          this.btnAction.innerHTML = `<span style="font-size:16px;line-height:1;display:flex;align-items:center;justify-content:center;">✨</span>`;
+          this.btnAction.style.background = 'linear-gradient(135deg, #10b981, #059669)';
+          this.btnAction.style.boxShadow = '0 4px 14px rgba(16, 185, 129, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.3)';
+          this.btnAction.style.border = '1px solid rgba(52, 211, 153, 0.4)';
+          this.btnAction.style.color = '#ffffff';
+        } else {
+          // Gray when upscale OFF
+          this.btnAction.innerHTML = `<span style="font-size:15px;line-height:1;display:flex;align-items:center;justify-content:center;">⚡</span>`;
+          this.btnAction.style.background = 'linear-gradient(135deg, #334155, #1e293b)';
+          this.btnAction.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.08)';
+          this.btnAction.style.border = '1px solid rgba(255, 255, 255, 0.14)';
+          this.btnAction.style.color = '#cbd5e1';
+        }
       } else {
-        this.btnAction.innerHTML = this.isCollapsed
-          ? `<span style="font-size:14px">⚡</span>`
-          : `<span style="font-size:14px">⚡</span><span>Улучшить</span>`;
-        this.btnAction.style.background = 'linear-gradient(135deg,#f59e0b,#d97706)';
-        this.btnAction.style.boxShadow = '0 2px 14px rgba(245,158,11,0.4)';
+        this.btnAction.style.width = 'auto';
+        this.btnAction.style.height = 'auto';
+        this.btnAction.style.padding = '6px 14px';
+        this.btnAction.style.borderRadius = '18px';
+
+        if (isOn) {
+          // Green when upscale ON
+          this.btnAction.innerHTML = `<span style="font-size:14px">✨</span><span>4K ON</span>`;
+          this.btnAction.style.background = 'linear-gradient(135deg, #10b981, #059669)';
+          this.btnAction.style.boxShadow = '0 4px 14px rgba(16, 185, 129, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.25)';
+          this.btnAction.style.border = '1px solid rgba(52, 211, 153, 0.35)';
+          this.btnAction.style.color = '#ffffff';
+        } else {
+          // Gray when upscale OFF
+          this.btnAction.innerHTML = `<span style="font-size:14px">⚡</span><span>Улучшить</span>`;
+          this.btnAction.style.background = 'linear-gradient(135deg, #334155, #1e293b)';
+          this.btnAction.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.08)';
+          this.btnAction.style.border = '1px solid rgba(255, 255, 255, 0.14)';
+          this.btnAction.style.color = '#cbd5e1';
+        }
       }
+
       if (this.isMenuOpen) {
         this.renderQuickMenu();
       }
@@ -2665,13 +2796,54 @@
             fps = p.actualFps; ms = p.emaMs; dropped = p.droppedFrames || 0; break;
           }
         }
+        // Fallback to cached subframe status if top frame has no active video
+        if (!isRunning && cachedSubframeStatus && (Date.now() - lastSubframeTime < 4000)) {
+          isRunning = true;
+          res = cachedSubframeStatus.resolution;
+          fps = cachedSubframeStatus.fps;
+          ms = cachedSubframeStatus.renderMs;
+          dropped = cachedSubframeStatus.droppedFrames || 0;
+        }
         sendResponse({
           ok: true, active: isRunning || isSiteActive(), isRunning, mode: getEffectiveMode(),
-          videoCount: activeProcessors.size, resolution: res, fps, renderMs: ms, droppedFrames: dropped
+          videoCount: isRunning ? Math.max(1, activeProcessors.size) : activeProcessors.size,
+          resolution: res, fps, renderMs: ms, droppedFrames: dropped
         });
       }
     });
   } catch (e) {}
+
+  // ─── Cross-Frame Iframe Telemetry Bridge ─────────────────────────────────────
+  let cachedSubframeStatus = null;
+  let lastSubframeTime = 0;
+
+  if (window !== window.top) {
+    setInterval(() => {
+      let isRunning = false, res = '–', fps = 0, ms = 0, dropped = 0;
+      for (const p of activeProcessors.values()) {
+        if (p.isOn && p.video) {
+          isRunning = true;
+          res = `${p.video.videoWidth}x${p.video.videoHeight}→${p.canvas.width}x${p.canvas.height}`;
+          fps = p.actualFps; ms = p.emaMs; dropped = p.droppedFrames || 0; break;
+        }
+      }
+      if (isRunning) {
+        try {
+          window.top.postMessage({
+            type: '__AU_FRAME_STATUS__',
+            data: { isRunning, resolution: res, fps, renderMs: ms, droppedFrames: dropped, mode: getEffectiveMode() }
+          }, '*');
+        } catch (e) {}
+      }
+    }, 1000);
+  } else {
+    window.addEventListener('message', (e) => {
+      if (e.data && e.data.type === '__AU_FRAME_STATUS__' && e.data.data) {
+        cachedSubframeStatus = e.data.data;
+        lastSubframeTime = Date.now();
+      }
+    });
+  }
 
   // ─── Initialization ─────────────────────────────────────────────────────────
   const domObs = new MutationObserver(() => scanForVideos());

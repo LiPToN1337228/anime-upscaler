@@ -1,7 +1,7 @@
 # Chrome Web Store Listing: Anime UpScaler PRO
 
-**Last Updated:** 2026-11-17  
-**Version:** 3.4.1
+**Last Updated:** 2026-11-18  
+**Version:** 3.5.0
 
 ---
 

@@ -216,13 +216,23 @@
       $telFps.textContent = res.fps ? `${res.fps} FPS` : '–';
       $telMs.textContent = res.renderMs ? `${res.renderMs.toFixed(1)} ms` : '–';
       
+      const isRunning = !!res.isRunning;
       const isActuallyActive = !!(res.active || res.isRunning);
-      $telGpu.textContent = isActuallyActive ? 'Активен (GPU)' : 'Пауза';
-      $telGpu.style.color = isActuallyActive ? '#34d399' : '#fbbf24';
+      if (isRunning) {
+        $telGpu.textContent = 'Активен (GPU)';
+        $telGpu.style.color = '#34d399';
+      } else if (isActuallyActive) {
+        $telGpu.textContent = 'Готов (Пауза)';
+        $telGpu.style.color = '#38bdf8';
+      } else {
+        $telGpu.textContent = isActiveHere() ? 'Ожидание видео' : 'Отключен';
+        $telGpu.style.color = '#94a3b8';
+      }
 
-      // Keep popup Master Button in sync with real video upscaling state
-      $btnMaster.classList.toggle('off', !isActuallyActive);
-      $btnMasterText.textContent = isActuallyActive ? 'АПСКЕЙЛЕР АКТИВЕН' : 'АПСКЕЙЛЕР ВЫКЛЮЧЕН';
+      // Synchronize Master Button state with configured site permission or running GPU
+      const isMasterOn = isActiveHere() || isActuallyActive;
+      $btnMaster.classList.toggle('off', !isMasterOn);
+      $btnMasterText.textContent = isMasterOn ? 'АПСКЕЙЛЕР ВКЛЮЧЕН' : 'АПСКЕЙЛЕР ВЫКЛЮЧЕН';
       if (isActuallyActive && cfg.enabled === false) {
         cfg.enabled = true;
         chrome.storage.local.set({ enabled: true });
@@ -300,7 +310,7 @@
     // 2. Master Switch
     const active = isActiveHere();
     $btnMaster.classList.toggle('off', !active);
-    $btnMasterText.textContent = active ? 'АПСКЕЙЛЕР АКТИВЕН' : 'АПСКЕЙЛЕР ВЫКЛЮЧЕН';
+    $btnMasterText.textContent = active ? 'АПСКЕЙЛЕР ВКЛЮЧЕН' : 'АПСКЕЙЛЕР ВЫКЛЮЧЕН';
 
     // 3. Active Mode
     const effectiveMode = (cfg.hosts && cfg.hosts[currentHost] && cfg.hosts[currentHost].mode) || cfg.mode || '4';

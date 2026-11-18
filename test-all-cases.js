@@ -29,7 +29,7 @@ try {
   const manifest = JSON.parse(manifestRaw);
 
   assert(manifest.manifest_version === 3, 'Manifest is valid MV3', `version ${manifest.manifest_version}`);
-  assert(manifest.version === '3.4.1', 'Version matches 3.4.1', manifest.version);
+  assert(manifest.version === '3.5.0', 'Version matches 3.5.0', manifest.version);
   assert(manifest.options_ui && manifest.options_ui.page === 'options.html', 'Options UI page configured', manifest.options_ui.page);
   assert(manifest.content_scripts && manifest.content_scripts[0].all_frames === true, 'Content script runs in all_frames for iframe support');
 
@@ -238,6 +238,14 @@ assert(bkgCode.includes('chrome.runtime.onInstalled.addListener'), 'background.j
 
 // Check in-player mode switching & quick menu flyout
 assert(contentCode.includes('__au_quick_menu') && contentCode.includes('__au_widget_mode_btn'), 'PlayerWidget: In-player Mode switching badge & Glassmorphic Quick Menu flyout');
+
+// Check v3.5.0 Performance & Zero-Lag Invariants
+assert(contentCode.includes('getShaderFingerprint'), 'content.js implements pass fingerprint caching to eliminate video lag');
+assert(contentCode.includes('isOnlyUI'), 'content.js implements zero-lag fast path bypassing WebGL recompile on UI changes');
+assert(contentCode.includes("borderRadius = '50%'") && contentCode.includes("aspectRatio = '1 / 1'"), 'PlayerWidget implements geometric 1:1 circular FAB in collapsed mode');
+assert(contentCode.includes('#10b981') && contentCode.includes('#334155'), 'PlayerWidget implements emerald green ON and slate gray OFF button colors');
+assert(contentCode.includes('height:28px!important') && contentCode.includes('width:max-content!important'), 'HUD overlay strictly clamped to 28px height to prevent vertical stretching');
+assert(contentCode.includes('__AU_FRAME_STATUS__'), 'Cross-frame iframe telemetry bridge implemented for embedded video players');
 
 // ── TEST SUITE 5: Script Syntax Validation ────────────────────────────────────
 console.log('\n[Suite 5] JavaScript Syntax Check on All Modules');
