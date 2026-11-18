@@ -1295,6 +1295,9 @@
 
       const id = ++this.renderingId;
       this.renderLoop(id);
+      if (this.video.paused || this.video.ended) {
+        this.renderSingleFrame();
+      }
     }
 
     stop() {
@@ -2002,6 +2005,9 @@
           saveConfigPatch({ enabled: false });
         } else {
           proc.start();
+          if (proc.video.paused || proc.video.ended) {
+            proc.renderSingleFrame();
+          }
           this.updateState(true);
           saveConfigPatch({ enabled: true });
         }
@@ -2489,18 +2495,6 @@
         this.btnAction.style.display = 'flex';
         this.btnAction.style.alignItems = 'center';
         this.btnAction.style.justifyContent = 'center';
-
-        if (on) {
-          this.el.style.background = 'linear-gradient(135deg, #10b981, #059669)';
-          this.el.style.boxShadow = '0 4px 16px rgba(16, 185, 129, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.35)';
-          this.el.style.border = '1px solid rgba(52, 211, 153, 0.55)';
-          this.btnAction.innerHTML = `<span style="font-size:16px;line-height:1;display:flex;align-items:center;justify-content:center;">✨</span>`;
-        } else {
-          this.el.style.background = 'linear-gradient(135deg, #334155, #1e293b)';
-          this.el.style.boxShadow = '0 4px 14px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.12)';
-          this.el.style.border = '1px solid rgba(255, 255, 255, 0.18)';
-          this.btnAction.innerHTML = `<span style="font-size:15px;line-height:1;display:flex;align-items:center;justify-content:center;color:#cbd5e1;">⚡</span>`;
-        }
       } else {
         // Expanded sleek glassmorphic pill
         this.el.style.width = 'auto';
@@ -2532,20 +2526,6 @@
         this.btnAction.style.justifyContent = 'center';
         this.btnAction.style.gap = '5px';
 
-        if (on) {
-          this.btnAction.innerHTML = `<span style="font-size:13px">✨</span><span style="font-size:12px;font-weight:700">4K ON</span>`;
-          this.btnAction.style.background = 'linear-gradient(135deg, #10b981, #059669)';
-          this.btnAction.style.boxShadow = '0 2px 10px rgba(16, 185, 129, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.25)';
-          this.btnAction.style.border = '1px solid rgba(52, 211, 153, 0.4)';
-          this.btnAction.style.color = '#ffffff';
-        } else {
-          this.btnAction.innerHTML = `<span style="font-size:13px">⚡</span><span style="font-size:12px;font-weight:600">Улучшить</span>`;
-          this.btnAction.style.background = 'linear-gradient(135deg, #334155, #1e293b)';
-          this.btnAction.style.boxShadow = '0 2px 8px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.08)';
-          this.btnAction.style.border = '1px solid rgba(255, 255, 255, 0.14)';
-          this.btnAction.style.color = '#cbd5e1';
-        }
-
         // Tray expands smoothly
         if (this.tray) {
           this.tray.style.maxWidth = '360px';
@@ -2568,10 +2548,46 @@
     }
 
     updateState(isOn) {
+      const proc = activeProcessors.get(this.video);
+      const on = (typeof isOn === 'boolean') ? isOn : !!(proc && proc.isOn);
       const mode = getEffectiveMode();
+
       if (this.btnMode) {
         this.btnMode.textContent = MODE_LABELS[mode] || mode;
       }
+
+      if (this.isCollapsed) {
+        this.btnAction.style.background = 'transparent';
+        this.btnAction.style.border = 'none';
+        this.btnAction.style.boxShadow = 'none';
+
+        if (on) {
+          this.el.style.background = 'linear-gradient(135deg, #10b981, #059669)';
+          this.el.style.boxShadow = '0 4px 16px rgba(16, 185, 129, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.35)';
+          this.el.style.border = '1px solid rgba(52, 211, 153, 0.55)';
+          this.btnAction.innerHTML = `<span style="font-size:16px;line-height:1;display:flex;align-items:center;justify-content:center;">✨</span>`;
+        } else {
+          this.el.style.background = 'linear-gradient(135deg, #334155, #1e293b)';
+          this.el.style.boxShadow = '0 4px 14px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.12)';
+          this.el.style.border = '1px solid rgba(255, 255, 255, 0.18)';
+          this.btnAction.innerHTML = `<span style="font-size:15px;line-height:1;display:flex;align-items:center;justify-content:center;color:#cbd5e1;">⚡</span>`;
+        }
+      } else {
+        if (on) {
+          this.btnAction.innerHTML = `<span style="font-size:13px">✨</span><span style="font-size:12px;font-weight:700">4K ON</span>`;
+          this.btnAction.style.background = 'linear-gradient(135deg, #10b981, #059669)';
+          this.btnAction.style.boxShadow = '0 2px 10px rgba(16, 185, 129, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.25)';
+          this.btnAction.style.border = '1px solid rgba(52, 211, 153, 0.4)';
+          this.btnAction.style.color = '#ffffff';
+        } else {
+          this.btnAction.innerHTML = `<span style="font-size:13px">⚡</span><span style="font-size:12px;font-weight:600">Улучшить</span>`;
+          this.btnAction.style.background = 'linear-gradient(135deg, #334155, #1e293b)';
+          this.btnAction.style.boxShadow = '0 2px 8px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.08)';
+          this.btnAction.style.border = '1px solid rgba(255, 255, 255, 0.14)';
+          this.btnAction.style.color = '#cbd5e1';
+        }
+      }
+
       if (this.isMenuOpen) {
         this.renderQuickMenu();
       }
@@ -2794,6 +2810,7 @@
       if (active) {
         if (!proc.isOn) proc.start();
         proc.rebuildPasses();
+        if (proc.video.paused || proc.video.ended) proc.renderSingleFrame();
         if (widget) widget.updateState(true);
       } else {
         if (proc.isOn) proc.stop();
