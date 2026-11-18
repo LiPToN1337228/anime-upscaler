@@ -1997,7 +1997,8 @@
         'box-shadow:0 4px 14px rgba(16,185,129,0.35), inset 0 1px 0 rgba(255,255,255,0.25)',
         'border:1px solid rgba(52,211,153,0.35)',
         'transition:transform 0.15s ease, background 0.15s ease, box-shadow 0.15s ease',
-        'box-sizing:border-box'
+        'box-sizing:border-box',
+        'aspect-ratio:auto'
       ].join(';');
       btnAction.innerHTML = `<span style="font-size:14px">✨</span><span>4K ON</span>`;
       btnAction.addEventListener('click', (e) => {
@@ -2146,6 +2147,8 @@
 
       if (this.isCollapsed) {
         this._applyCollapseVisuals(true);
+      } else {
+        this._applyCollapseVisuals(false);
       }
     }
 
@@ -2466,6 +2469,11 @@
 
         this.btnAction.style.width = 'auto';
         this.btnAction.style.height = 'auto';
+        this.btnAction.style.minWidth = 'unset';
+        this.btnAction.style.minHeight = 'unset';
+        this.btnAction.style.maxWidth = 'unset';
+        this.btnAction.style.maxHeight = 'unset';
+        this.btnAction.style.aspectRatio = 'auto';
         this.btnAction.style.padding = '6px 14px';
         this.btnAction.style.borderRadius = '18px';
       }
@@ -2492,6 +2500,7 @@
         this.btnAction.style.height = '100%';
         this.btnAction.style.padding = '0';
         this.btnAction.style.borderRadius = '50%';
+        this.btnAction.style.aspectRatio = '1 / 1';
         this.btnAction.style.display = 'flex';
         this.btnAction.style.alignItems = 'center';
         this.btnAction.style.justifyContent = 'center';
@@ -2514,6 +2523,11 @@
       } else {
         this.btnAction.style.width = 'auto';
         this.btnAction.style.height = 'auto';
+        this.btnAction.style.minWidth = 'unset';
+        this.btnAction.style.minHeight = 'unset';
+        this.btnAction.style.maxWidth = 'unset';
+        this.btnAction.style.maxHeight = 'unset';
+        this.btnAction.style.aspectRatio = 'auto';
         this.btnAction.style.padding = '6px 14px';
         this.btnAction.style.borderRadius = '18px';
 
