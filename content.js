@@ -1935,10 +1935,12 @@
       this.video = video;
       this.isCollapsed = !!cfg.widgetCollapsed;
       this.isMenuOpen = false;
+      this.activeMenuTab = 'modes';
       this.autoHideTimer = null;
       this.isHoveringWidget = false;
 
       this.btnAction = null;
+      this.tray = null;
       this.btnMode = null;
       this.btnSnapshot = null;
       this.btnSettings = null;
@@ -1958,22 +1960,15 @@
         'z-index:2147483647',
         'display:flex',
         'align-items:center',
-        'gap:6px',
-        'background:rgba(10,14,22,0.92)',
-        'backdrop-filter:blur(16px)',
-        '-webkit-backdrop-filter:blur(16px)',
-        'border:1px solid rgba(255,255,255,0.15)',
-        'border-radius:24px',
-        'padding:4px 6px',
-        'box-shadow:0 4px 20px rgba(0,0,0,0.6)',
-        'transition:opacity 0.2s ease, transform 0.18s cubic-bezier(0.16,1,0.3,1)',
+        'height:38px',
+        'box-sizing:border-box',
+        'transition:width 0.3s cubic-bezier(0.16,1,0.3,1), max-width 0.3s cubic-bezier(0.16,1,0.3,1), background 0.25s ease, border-radius 0.3s cubic-bezier(0.16,1,0.3,1), box-shadow 0.25s ease, opacity 0.2s ease',
         'user-select:none',
         'opacity:0',
         'pointer-events:none',
         'white-space:nowrap',
-        'box-sizing:border-box',
-        'contain:paint layout',
-        'will-change:transform, opacity'
+        'contain:layout',
+        'will-change:width, transform, opacity'
       ].join(';');
 
       // In collapsed mode: clicking the collapsed circle expands the widget!
@@ -1990,17 +1985,12 @@
       btnAction.className = '__au_widget_main_btn';
       btnAction.style.cssText = [
         'display:flex', 'align-items:center', 'justify-content:center', 'gap:5px',
-        'padding:6px 14px',
-        'background:linear-gradient(135deg,#10b981,#059669)',
-        'color:#ffffff', 'font:700 13px/1 system-ui,-apple-system,sans-serif',
-        'border-radius:18px', 'cursor:pointer',
-        'box-shadow:0 4px 14px rgba(16,185,129,0.35), inset 0 1px 0 rgba(255,255,255,0.25)',
-        'border:1px solid rgba(52,211,153,0.35)',
-        'transition:transform 0.15s ease, background 0.15s ease, box-shadow 0.15s ease',
+        'height:28px', 'padding:0 12px',
+        'border-radius:16px', 'cursor:pointer',
+        'transition:all 0.2s cubic-bezier(0.16,1,0.3,1)',
         'box-sizing:border-box',
-        'aspect-ratio:auto'
+        'user-select:none'
       ].join(';');
-      btnAction.innerHTML = `<span style="font-size:14px">✨</span><span>4K ON</span>`;
       btnAction.addEventListener('click', (e) => {
         e.stopPropagation();
         if (this.isCollapsed) return;
@@ -2019,16 +2009,26 @@
       w.appendChild(btnAction);
       this.btnAction = btnAction;
 
+      // Tray for secondary controls (smooth morphing slide-in)
+      const tray = document.createElement('div');
+      tray.className = '__au_widget_tray';
+      tray.style.cssText = [
+        'display:flex', 'align-items:center', 'gap:5px',
+        'transition:max-width 0.3s cubic-bezier(0.16,1,0.3,1), opacity 0.2s ease, transform 0.3s cubic-bezier(0.16,1,0.3,1)',
+        'overflow:hidden', 'box-sizing:border-box'
+      ].join(';');
+      this.tray = tray;
+
       // 2. Mode Badge Button
       const btnMode = document.createElement('div');
       btnMode.className = '__au_widget_mode_btn';
       btnMode.title = 'Выбрать режим апскейла Anime UpScaler PRO';
       btnMode.style.cssText = [
         'display:flex', 'align-items:center', 'gap:4px',
-        'padding:6px 10px',
+        'height:28px', 'padding:0 10px',
         'background:rgba(255,255,255,0.08)',
-        'color:#e2e8f0', 'font:600 12px/1 system-ui,-apple-system,sans-serif',
-        'border-radius:18px', 'cursor:pointer',
+        'color:#f1f5f9', 'font:600 12px/1 system-ui,-apple-system,sans-serif',
+        'border-radius:14px', 'cursor:pointer',
         'border:1px solid rgba(255,255,255,0.12)',
         'transition:all 0.15s ease',
         'white-space:nowrap'
@@ -2046,84 +2046,88 @@
       });
       btnMode.addEventListener('click', (e) => {
         e.stopPropagation();
-        this.toggleQuickMenu();
+        this.toggleQuickMenu('modes');
       });
-      w.appendChild(btnMode);
+      tray.appendChild(btnMode);
       this.btnMode = btnMode;
 
       // 3. 4K Snapshot Camera Button
       const btnSnapshot = document.createElement('div');
       btnSnapshot.title = '📸 Сохранить 4K кадр (Обои + Буфер)';
       btnSnapshot.style.cssText = [
-        'width:26px', 'height:26px',
+        'width:28px', 'height:28px',
         'display:flex', 'align-items:center', 'justify-content:center',
         'border-radius:50%', 'background:rgba(255,255,255,0.06)',
-        'color:#94a3b8', 'font-size:13px', 'cursor:pointer',
+        'border:1px solid rgba(255,255,255,0.1)',
+        'color:#cbd5e1', 'font-size:13px', 'cursor:pointer',
         'transition:all 0.15s ease'
       ].join(';');
       btnSnapshot.textContent = '📸';
       btnSnapshot.addEventListener('mouseenter', () => {
-        btnSnapshot.style.background = 'rgba(255,255,255,0.14)';
+        btnSnapshot.style.background = 'rgba(255,255,255,0.16)';
         btnSnapshot.style.color = '#fff';
       });
       btnSnapshot.addEventListener('mouseleave', () => {
         btnSnapshot.style.background = 'rgba(255,255,255,0.06)';
-        btnSnapshot.style.color = '#94a3b8';
+        btnSnapshot.style.color = '#cbd5e1';
       });
       btnSnapshot.addEventListener('click', (e) => {
         e.stopPropagation();
         const proc = activeProcessors.get(this.video);
         if (proc) proc.take4KSnapshot();
       });
-      w.appendChild(btnSnapshot);
+      tray.appendChild(btnSnapshot);
       this.btnSnapshot = btnSnapshot;
 
-      // 4. Settings Gear Button (toggles Quick Menu)
+      // 4. Settings Gear Button (opens Quick Effects & Settings directly)
       const btnSettings = document.createElement('div');
-      btnSettings.title = 'Быстрое меню и настройки Anime UpScaler PRO';
+      btnSettings.title = 'Быстрые эффекты и настройки Anime UpScaler PRO';
       btnSettings.style.cssText = [
-        'width:26px', 'height:26px',
+        'width:28px', 'height:28px',
         'display:flex', 'align-items:center', 'justify-content:center',
         'border-radius:50%', 'background:rgba(255,255,255,0.06)',
-        'color:#94a3b8', 'font-size:13px', 'cursor:pointer',
+        'border:1px solid rgba(255,255,255,0.1)',
+        'color:#cbd5e1', 'font-size:13px', 'cursor:pointer',
         'transition:all 0.15s ease'
       ].join(';');
       btnSettings.textContent = '⚙️';
       btnSettings.addEventListener('mouseenter', () => {
-        btnSettings.style.background = 'rgba(255,255,255,0.14)';
+        btnSettings.style.background = 'rgba(255,255,255,0.16)';
         btnSettings.style.color = '#fff';
       });
       btnSettings.addEventListener('mouseleave', () => {
         btnSettings.style.background = 'rgba(255,255,255,0.06)';
-        btnSettings.style.color = '#94a3b8';
+        btnSettings.style.color = '#cbd5e1';
       });
       btnSettings.addEventListener('click', (e) => {
         e.stopPropagation();
-        this.toggleQuickMenu();
+        this.toggleQuickMenu('settings');
       });
-      w.appendChild(btnSettings);
+      tray.appendChild(btnSettings);
       this.btnSettings = btnSettings;
 
       // 5. Collapse Toggle Chevron
       const btnCollapse = document.createElement('div');
       btnCollapse.title = 'Свернуть в мини-иконку';
       btnCollapse.style.cssText = [
-        'width:22px', 'height:26px',
+        'width:22px', 'height:28px',
         'display:flex', 'align-items:center', 'justify-content:center',
         'border-radius:12px', 'background:transparent',
-        'color:#64748b', 'font-size:14px', 'font-weight:700', 'cursor:pointer',
+        'color:#94a3b8', 'font-size:14px', 'font-weight:700', 'cursor:pointer',
         'padding-right:2px',
         'transition:all 0.15s ease'
       ].join(';');
       btnCollapse.textContent = '‹';
       btnCollapse.addEventListener('mouseenter', () => { btnCollapse.style.color = '#fff'; });
-      btnCollapse.addEventListener('mouseleave', () => { btnCollapse.style.color = '#64748b'; });
+      btnCollapse.addEventListener('mouseleave', () => { btnCollapse.style.color = '#94a3b8'; });
       btnCollapse.addEventListener('click', (e) => {
         e.stopPropagation();
         this.toggleCollapse();
       });
-      w.appendChild(btnCollapse);
+      tray.appendChild(btnCollapse);
       this.btnCollapse = btnCollapse;
+
+      w.appendChild(tray);
 
       // 6. Quick Menu Flyout
       this._initQuickMenu(w);
@@ -2194,196 +2198,227 @@
       if (!this.quickMenu) return;
       this.quickMenu.innerHTML = '';
 
-      const effectiveMode = getEffectiveMode();
+      // Section Tabs: Modes vs Settings
+      const tabWrap = document.createElement('div');
+      tabWrap.style.cssText = 'display:flex;gap:4px;margin-bottom:10px;background:rgba(255,255,255,0.06);padding:3px;border-radius:10px;border:1px solid rgba(255,255,255,0.08);';
 
-      // Section 1: Modes (1-click switching)
-      const headerModes = document.createElement('div');
-      headerModes.style.cssText = 'font-size:11px;font-weight:700;color:#94a3b8;letter-spacing:0.05em;text-transform:uppercase;margin-bottom:6px;padding:0 4px;';
-      headerModes.textContent = 'Режимы апскейла';
-      this.quickMenu.appendChild(headerModes);
+      const tabModes = document.createElement('button');
+      tabModes.textContent = '🚀 Режимы';
+      tabModes.style.cssText = [
+        'flex:1', 'padding:6px 0', 'border:none', 'border-radius:7px', 'cursor:pointer',
+        'font:600 11px/1 system-ui,-apple-system,sans-serif', 'transition:all 0.15s ease',
+        this.activeMenuTab === 'modes'
+          ? 'background:#10b981;color:#ffffff;box-shadow:0 1px 4px rgba(0,0,0,0.3);'
+          : 'background:transparent;color:#94a3b8;'
+      ].join(';');
+      tabModes.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this.activeMenuTab = 'modes';
+        this.renderQuickMenu();
+      });
+      tabWrap.appendChild(tabModes);
 
-      const modesList = [
-        { id: 'godmode', label: '🚀 Supreme Godmode (50-Pass)' },
-        { id: 'ultra',   label: '💎 Ultra Master (L-Tier)' },
-        { id: 'hq',      label: '🎬 HQ Кино (RestoreM + UpscaleM)' },
-        { id: '4-turbo', label: '⚡ Режим 4 Turbo (Fast 3-Pass)' },
-        { id: '4',       label: '★ Режим 4 (Оригинал AnimeSR)' },
-        { id: 'auto',    label: '🤖 Умный Авто-баланс' }
-      ];
+      const tabSettings = document.createElement('button');
+      tabSettings.textContent = '⚙️ Настройки и Эффекты';
+      tabSettings.style.cssText = [
+        'flex:1', 'padding:6px 0', 'border:none', 'border-radius:7px', 'cursor:pointer',
+        'font:600 11px/1 system-ui,-apple-system,sans-serif', 'transition:all 0.15s ease',
+        this.activeMenuTab === 'settings'
+          ? 'background:#10b981;color:#ffffff;box-shadow:0 1px 4px rgba(0,0,0,0.3);'
+          : 'background:transparent;color:#94a3b8;'
+      ].join(';');
+      tabSettings.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this.activeMenuTab = 'settings';
+        this.renderQuickMenu();
+      });
+      tabWrap.appendChild(tabSettings);
 
-      for (const m of modesList) {
-        const item = document.createElement('div');
-        const isActive = (effectiveMode === m.id);
-        item.style.cssText = [
-          'display:flex', 'align-items:center', 'justify-content:space-between',
-          'padding:6px 10px', 'border-radius:8px', 'cursor:pointer',
-          'font-size:12px', 'margin-bottom:3px', 'transition:all 0.15s ease',
-          isActive
-            ? 'background:rgba(16,185,129,0.16);border:1px solid rgba(16,185,129,0.45);color:#34d399;font-weight:600'
-            : 'background:rgba(255,255,255,0.03);border:1px solid transparent;color:#cbd5e1'
-        ].join(';');
+      this.quickMenu.appendChild(tabWrap);
 
-        item.innerHTML = `<span>${m.label}</span>${isActive ? '<span style="color:#10b981;font-weight:700">✓</span>' : ''}`;
+      if (this.activeMenuTab === 'modes') {
+        // Section: Modes (1-click switching)
+        const modesList = [
+          { id: 'godmode', label: '🚀 Supreme Godmode (50-Pass)' },
+          { id: 'ultra',   label: '💎 Ultra Master (L-Tier)' },
+          { id: 'hq',      label: '🎬 HQ Кино (RestoreM + UpscaleM)' },
+          { id: '4-turbo', label: '⚡ Режим 4 Turbo (Fast 3-Pass)' },
+          { id: '4',       label: '★ Режим 4 (Оригинал AnimeSR)' },
+          { id: 'auto',    label: '🤖 Умный Авто-баланс' }
+        ];
 
-        item.addEventListener('mouseenter', () => {
-          if (!isActive) {
-            item.style.background = 'rgba(255,255,255,0.08)';
-            item.style.color = '#fff';
-          }
-        });
-        item.addEventListener('mouseleave', () => {
-          if (!isActive) {
+        const effectiveMode = getEffectiveMode();
+        for (const m of modesList) {
+          const item = document.createElement('div');
+          const isActive = (effectiveMode === m.id);
+          item.style.cssText = [
+            'display:flex', 'align-items:center', 'justify-content:space-between',
+            'padding:6px 10px', 'border-radius:8px', 'cursor:pointer',
+            'font-size:12px', 'margin-bottom:3px', 'transition:all 0.15s ease',
+            isActive
+              ? 'background:rgba(16,185,129,0.16);border:1px solid rgba(16,185,129,0.45);color:#34d399;font-weight:600'
+              : 'background:rgba(255,255,255,0.03);border:1px solid transparent;color:#cbd5e1'
+          ].join(';');
+
+          item.innerHTML = `<span>${m.label}</span>${isActive ? '<span style="color:#10b981;font-weight:700">✓</span>' : ''}`;
+
+          item.addEventListener('mouseenter', () => {
+            if (!isActive) {
+              item.style.background = 'rgba(255,255,255,0.08)';
+              item.style.color = '#fff';
+            }
+          });
+          item.addEventListener('mouseleave', () => {
+            if (!isActive) {
+              item.style.background = 'rgba(255,255,255,0.03)';
+              item.style.color = '#cbd5e1';
+            }
+          });
+
+          item.addEventListener('click', () => {
+            saveConfigPatch({ mode: m.id });
+            cfg.mode = m.id;
+            applyAll();
+            this.renderQuickMenu();
+            const proc = activeProcessors.get(this.video);
+            this.updateState(proc && proc.isOn);
+          });
+
+          this.quickMenu.appendChild(item);
+        }
+      } else {
+        // Section: Quick Toggles & Effects
+        const togglesList = [
+          { key: 'enableFilmGrain',      label: '🎞 Пленочное зерно (Grain)' },
+          { key: 'enableHighlightClamp', label: '☀️ Защита пересветов (Clamp)', def: true },
+          { key: 'enableLineEnhance',    label: '✒️ Контуры (Line Shaper)',    def: true },
+          { key: 'enableBloom',          label: '✨ Блум (Bloom)' },
+          { key: 'splitScreen',          label: '🎮 Сравнение (Split-Screen)' },
+          { key: 'showHud',              label: '📊 Телеметрия (HUD-оверлей)', def: true }
+        ];
+
+        for (const t of togglesList) {
+          const item = document.createElement('div');
+          const isOn = (t.def === true) ? (cfg[t.key] !== false) : !!cfg[t.key];
+
+          item.style.cssText = [
+            'display:flex', 'align-items:center', 'justify-content:space-between',
+            'padding:6px 8px', 'border-radius:8px', 'cursor:pointer',
+            'font-size:12px', 'margin-bottom:3px', 'background:rgba(255,255,255,0.03)',
+            'color:#cbd5e1', 'transition:all 0.15s ease'
+          ].join(';');
+
+          const trackBg = isOn ? '#10b981' : 'rgba(255,255,255,0.18)';
+          const thumbLeft = isOn ? '15px' : '2px';
+
+          item.innerHTML = `
+            <span>${t.label}</span>
+            <div style="width:30px;height:17px;border-radius:9px;background:${trackBg};position:relative;transition:background 0.2s ease;">
+              <div style="width:13px;height:13px;border-radius:50%;background:#ffffff;position:absolute;top:2px;left:${thumbLeft};transition:left 0.2s ease;box-shadow:0 1px 3px rgba(0,0,0,0.4);"></div>
+            </div>
+          `;
+
+          item.addEventListener('mouseenter', () => {
+            item.style.background = 'rgba(255,255,255,0.07)';
+          });
+          item.addEventListener('mouseleave', () => {
             item.style.background = 'rgba(255,255,255,0.03)';
-            item.style.color = '#cbd5e1';
-          }
-        });
+          });
 
-        item.addEventListener('click', () => {
-          saveConfigPatch({ mode: m.id });
-          cfg.mode = m.id;
-          applyAll();
-          this.renderQuickMenu();
-          const proc = activeProcessors.get(this.video);
-          this.updateState(proc && proc.isOn);
-        });
+          item.addEventListener('click', () => {
+            const nextVal = !isOn;
+            saveConfigPatch({ [t.key]: nextVal });
+            applyAll();
+            this.renderQuickMenu();
+          });
 
-        this.quickMenu.appendChild(item);
-      }
+          this.quickMenu.appendChild(item);
+        }
 
-      // Section 2: Quick Toggles
-      const headerToggles = document.createElement('div');
-      headerToggles.style.cssText = 'font-size:11px;font-weight:700;color:#94a3b8;letter-spacing:0.05em;text-transform:uppercase;margin-top:10px;margin-bottom:6px;padding:0 4px;';
-      headerToggles.textContent = 'Быстрые эффекты';
-      this.quickMenu.appendChild(headerToggles);
+        // Section: Whitelist & Full Settings
+        const footer = document.createElement('div');
+        footer.style.cssText = 'margin-top:8px;padding-top:8px;border-top:1px solid rgba(255,255,255,0.08);display:flex;flex-direction:column;gap:5px;';
 
-      const togglesList = [
-        { key: 'enableFilmGrain',      label: '🎞 Пленочное зерно (Grain)' },
-        { key: 'enableHighlightClamp', label: '☀️ Защита пересветов (Clamp)', def: true },
-        { key: 'enableLineEnhance',    label: '✒️ Контуры (Line Shaper)',    def: true },
-        { key: 'enableBloom',          label: '✨ Блум (Bloom)' },
-        { key: 'splitScreen',          label: '🎮 Сравнение (Split-Screen)' }
-      ];
-
-      for (const t of togglesList) {
-        const item = document.createElement('div');
-        const isOn = (t.def === true) ? (cfg[t.key] !== false) : !!cfg[t.key];
-
-        item.style.cssText = [
-          'display:flex', 'align-items:center', 'justify-content:space-between',
-          'padding:5px 8px', 'border-radius:8px', 'cursor:pointer',
-          'font-size:12px', 'margin-bottom:3px', 'background:rgba(255,255,255,0.03)',
-          'color:#cbd5e1', 'transition:all 0.15s ease'
+        const btnHideSite = document.createElement('div');
+        btnHideSite.style.cssText = [
+          'display:flex', 'align-items:center', 'justify-content:center', 'gap:6px',
+          'padding:6px 10px', 'border-radius:10px',
+          'background:rgba(239,68,68,0.1)', 'border:1px solid rgba(239,68,68,0.25)',
+          'color:#f87171', 'font:600 11px/1 system-ui,-apple-system,sans-serif',
+          'cursor:pointer', 'transition:all 0.15s ease'
         ].join(';');
+        btnHideSite.innerHTML = '<span>❌ Скрыть на этом сайте</span>';
+        btnHideSite.title = `Убрать ${CLEAN_HOST} из белого списка и скрыть кнопку`;
 
-        const trackBg = isOn ? '#10b981' : 'rgba(255,255,255,0.18)';
-        const thumbLeft = isOn ? '15px' : '2px';
-
-        item.innerHTML = `
-          <span>${t.label}</span>
-          <div style="width:30px;height:17px;border-radius:9px;background:${trackBg};position:relative;transition:background 0.2s ease;">
-            <div style="width:13px;height:13px;border-radius:50%;background:#ffffff;position:absolute;top:2px;left:${thumbLeft};transition:left 0.2s ease;box-shadow:0 1px 3px rgba(0,0,0,0.4);"></div>
-          </div>
-        `;
-
-        item.addEventListener('mouseenter', () => {
-          item.style.background = 'rgba(255,255,255,0.07)';
+        btnHideSite.addEventListener('mouseenter', () => {
+          btnHideSite.style.background = 'rgba(239,68,68,0.2)';
+          btnHideSite.style.color = '#fca5a5';
         });
-        item.addEventListener('mouseleave', () => {
-          item.style.background = 'rgba(255,255,255,0.03)';
+        btnHideSite.addEventListener('mouseleave', () => {
+          btnHideSite.style.background = 'rgba(239,68,68,0.1)';
+          btnHideSite.style.color = '#f87171';
         });
-
-        item.addEventListener('click', () => {
-          const nextVal = !isOn;
-          saveConfigPatch({ [t.key]: nextVal });
+        btnHideSite.addEventListener('click', (e) => {
+          e.stopPropagation();
+          this.closeQuickMenu();
+          const cleanHost = CLEAN_HOST;
+          let list = Array.isArray(cfg.allowedHosts) ? [...cfg.allowedHosts] : [...DEFAULTS.allowedHosts];
+          list = list.filter(item => {
+            const it = cleanDomain(item);
+            return !(cleanHost === it || cleanHost.endsWith('.' + it) || it.endsWith('.' + cleanHost));
+          });
+          const hosts = { ...(cfg.hosts || {}) };
+          delete hosts[HOST];
+          delete hosts[cleanHost];
+          saveConfigPatch({ allowedHosts: list, hosts });
           applyAll();
-          this.renderQuickMenu();
+        });
+        footer.appendChild(btnHideSite);
+
+        const btnFullSettings = document.createElement('div');
+        btnFullSettings.style.cssText = [
+          'display:flex', 'align-items:center', 'justify-content:center', 'gap:6px',
+          'padding:7px 10px', 'border-radius:10px',
+          'background:rgba(56,189,248,0.1)', 'border:1px solid rgba(56,189,248,0.25)',
+          'color:#38bdf8', 'font:600 12px/1 system-ui,-apple-system,sans-serif',
+          'cursor:pointer', 'transition:all 0.15s ease'
+        ].join(';');
+        btnFullSettings.innerHTML = '<span>Детальные настройки ↗</span>';
+
+        btnFullSettings.addEventListener('mouseenter', () => {
+          btnFullSettings.style.background = 'rgba(56,189,248,0.2)';
+          btnFullSettings.style.color = '#7dd3fc';
+        });
+        btnFullSettings.addEventListener('mouseleave', () => {
+          btnFullSettings.style.background = 'rgba(56,189,248,0.1)';
+          btnFullSettings.style.color = '#38bdf8';
+        });
+        btnFullSettings.addEventListener('click', (e) => {
+          e.stopPropagation();
+          this.closeQuickMenu();
+          chrome.runtime.sendMessage({ op: 'OPEN_OPTIONS' });
         });
 
-        this.quickMenu.appendChild(item);
+        footer.appendChild(btnFullSettings);
+        this.quickMenu.appendChild(footer);
       }
-
-      // Section 3: Whitelist & Full Settings
-      const footer = document.createElement('div');
-      footer.style.cssText = 'margin-top:8px;padding-top:8px;border-top:1px solid rgba(255,255,255,0.08);display:flex;flex-direction:column;gap:5px;';
-
-      const btnHideSite = document.createElement('div');
-      btnHideSite.style.cssText = [
-        'display:flex', 'align-items:center', 'justify-content:center', 'gap:6px',
-        'padding:6px 10px', 'border-radius:10px',
-        'background:rgba(239,68,68,0.1)', 'border:1px solid rgba(239,68,68,0.25)',
-        'color:#f87171', 'font:600 11px/1 system-ui,-apple-system,sans-serif',
-        'cursor:pointer', 'transition:all 0.15s ease'
-      ].join(';');
-      btnHideSite.innerHTML = '<span>❌ Скрыть на этом сайте</span>';
-      btnHideSite.title = `Убрать ${CLEAN_HOST} из белого списка и скрыть кнопку`;
-
-      btnHideSite.addEventListener('mouseenter', () => {
-        btnHideSite.style.background = 'rgba(239,68,68,0.2)';
-        btnHideSite.style.color = '#fca5a5';
-      });
-      btnHideSite.addEventListener('mouseleave', () => {
-        btnHideSite.style.background = 'rgba(239,68,68,0.1)';
-        btnHideSite.style.color = '#f87171';
-      });
-      btnHideSite.addEventListener('click', (e) => {
-        e.stopPropagation();
-        this.closeQuickMenu();
-        const cleanHost = CLEAN_HOST;
-        let list = Array.isArray(cfg.allowedHosts) ? [...cfg.allowedHosts] : [...DEFAULTS.allowedHosts];
-        list = list.filter(item => {
-          const it = cleanDomain(item);
-          return !(cleanHost === it || cleanHost.endsWith('.' + it) || it.endsWith('.' + cleanHost));
-        });
-        const hosts = { ...(cfg.hosts || {}) };
-        delete hosts[HOST];
-        delete hosts[cleanHost];
-        saveConfigPatch({ allowedHosts: list, hosts });
-        applyAll();
-      });
-      footer.appendChild(btnHideSite);
-
-      const btnFullSettings = document.createElement('div');
-      btnFullSettings.style.cssText = [
-        'display:flex', 'align-items:center', 'justify-content:center', 'gap:6px',
-        'padding:7px 10px', 'border-radius:10px',
-        'background:rgba(56,189,248,0.1)', 'border:1px solid rgba(56,189,248,0.25)',
-        'color:#38bdf8', 'font:600 12px/1 system-ui,-apple-system,sans-serif',
-        'cursor:pointer', 'transition:all 0.15s ease'
-      ].join(';');
-      btnFullSettings.innerHTML = '<span>Детальные настройки ↗</span>';
-
-      btnFullSettings.addEventListener('mouseenter', () => {
-        btnFullSettings.style.background = 'rgba(56,189,248,0.2)';
-        btnFullSettings.style.color = '#7dd3fc';
-      });
-      btnFullSettings.addEventListener('mouseleave', () => {
-        btnFullSettings.style.background = 'rgba(56,189,248,0.1)';
-        btnFullSettings.style.color = '#38bdf8';
-      });
-      btnFullSettings.addEventListener('click', (e) => {
-        e.stopPropagation();
-        this.closeQuickMenu();
-        chrome.runtime.sendMessage({ op: 'OPEN_OPTIONS' });
-      });
-
-      footer.appendChild(btnFullSettings);
-      this.quickMenu.appendChild(footer);
     }
 
-    toggleQuickMenu() {
-      if (this.isMenuOpen) {
+    toggleQuickMenu(tab = 'modes') {
+      if (this.isMenuOpen && this.activeMenuTab === tab) {
         this.closeQuickMenu();
       } else {
-        this.openQuickMenu();
+        this.openQuickMenu(tab);
       }
     }
 
-    openQuickMenu() {
+    openQuickMenu(tab = 'modes') {
       if (this.isCollapsed) {
         this.isCollapsed = false;
         saveConfigPatch({ widgetCollapsed: false });
         this._applyCollapseVisuals(false);
       }
+      this.activeMenuTab = tab;
       this.isMenuOpen = true;
       this.renderQuickMenu();
 
@@ -2415,67 +2450,110 @@
       const on = proc && proc.isOn;
 
       if (collapsed) {
-        if (this.btnMode)     this.btnMode.style.display = 'none';
-        if (this.btnSnapshot) this.btnSnapshot.style.display = 'none';
-        if (this.btnSettings) this.btnSettings.style.display = 'none';
-        if (this.btnCollapse) this.btnCollapse.style.display = 'none';
-        if (this.quickMenu)   this.quickMenu.style.display = 'none';
+        if (this.quickMenu) this.quickMenu.style.display = 'none';
         this.isMenuOpen = false;
 
-        // Perfect 1:1 circle (36px x 36px)
+        // Perfect 1:1 circle (36px x 36px) - seamless, zero outer padding
         this.el.style.width = '36px';
-        this.el.style.height = '36px';
         this.el.style.minWidth = '36px';
-        this.el.style.minHeight = '36px';
         this.el.style.maxWidth = '36px';
-        this.el.style.maxHeight = '36px';
+        this.el.style.height = '36px';
         this.el.style.borderRadius = '50%';
         this.el.style.aspectRatio = '1 / 1';
         this.el.style.padding = '0';
-        this.el.style.gap = '0';
-        this.el.style.justifyContent = 'center';
+        this.el.style.overflow = 'hidden';
         this.el.style.cursor = 'pointer';
         this.el.title = 'Нажмите, чтобы развернуть Anime UpScaler PRO';
 
+        // Tray collapses smoothly
+        if (this.tray) {
+          this.tray.style.maxWidth = '0';
+          this.tray.style.opacity = '0';
+          this.tray.style.transform = 'translateX(-10px) scale(0.9)';
+          this.tray.style.pointerEvents = 'none';
+          this.tray.style.marginLeft = '0';
+        }
+
+        // Action button fills the entire circle cleanly
         this.btnAction.style.width = '100%';
         this.btnAction.style.height = '100%';
+        this.btnAction.style.minWidth = 'unset';
+        this.btnAction.style.maxWidth = 'unset';
         this.btnAction.style.padding = '0';
         this.btnAction.style.margin = '0';
         this.btnAction.style.borderRadius = '50%';
         this.btnAction.style.aspectRatio = '1 / 1';
+        this.btnAction.style.background = 'transparent';
+        this.btnAction.style.border = 'none';
+        this.btnAction.style.boxShadow = 'none';
         this.btnAction.style.display = 'flex';
         this.btnAction.style.alignItems = 'center';
         this.btnAction.style.justifyContent = 'center';
-      } else {
-        if (this.btnMode)     this.btnMode.style.display = 'flex';
-        if (this.btnSnapshot) this.btnSnapshot.style.display = 'flex';
-        if (this.btnSettings) this.btnSettings.style.display = 'flex';
-        if (this.btnCollapse) this.btnCollapse.style.display = 'flex';
 
-        // Expanded glassmorphic capsule
+        if (on) {
+          this.el.style.background = 'linear-gradient(135deg, #10b981, #059669)';
+          this.el.style.boxShadow = '0 4px 16px rgba(16, 185, 129, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.35)';
+          this.el.style.border = '1px solid rgba(52, 211, 153, 0.55)';
+          this.btnAction.innerHTML = `<span style="font-size:16px;line-height:1;display:flex;align-items:center;justify-content:center;">✨</span>`;
+        } else {
+          this.el.style.background = 'linear-gradient(135deg, #334155, #1e293b)';
+          this.el.style.boxShadow = '0 4px 14px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.12)';
+          this.el.style.border = '1px solid rgba(255, 255, 255, 0.18)';
+          this.btnAction.innerHTML = `<span style="font-size:15px;line-height:1;display:flex;align-items:center;justify-content:center;color:#cbd5e1;">⚡</span>`;
+        }
+      } else {
+        // Expanded sleek glassmorphic pill
         this.el.style.width = 'auto';
-        this.el.style.height = 'auto';
         this.el.style.minWidth = 'unset';
-        this.el.style.minHeight = 'unset';
-        this.el.style.maxWidth = 'unset';
-        this.el.style.maxHeight = 'unset';
+        this.el.style.maxWidth = '460px';
+        this.el.style.height = '38px';
         this.el.style.borderRadius = '24px';
         this.el.style.aspectRatio = 'auto';
         this.el.style.padding = '4px 6px';
-        this.el.style.gap = '6px';
-        this.el.style.justifyContent = 'flex-start';
+        this.el.style.overflow = 'visible';
         this.el.style.cursor = 'default';
         this.el.title = '';
+        this.el.style.background = 'rgba(10, 15, 26, 0.92)';
+        this.el.style.backdropFilter = 'blur(16px)';
+        this.el.style.webkitBackdropFilter = 'blur(16px)';
+        this.el.style.border = '1px solid rgba(255, 255, 255, 0.15)';
+        this.el.style.boxShadow = '0 8px 30px rgba(0, 0, 0, 0.65)';
 
+        // Action button inside expanded container
         this.btnAction.style.width = 'auto';
-        this.btnAction.style.height = 'auto';
+        this.btnAction.style.height = '28px';
         this.btnAction.style.minWidth = 'unset';
-        this.btnAction.style.minHeight = 'unset';
         this.btnAction.style.maxWidth = 'unset';
-        this.btnAction.style.maxHeight = 'unset';
+        this.btnAction.style.padding = '0 12px';
+        this.btnAction.style.borderRadius = '16px';
         this.btnAction.style.aspectRatio = 'auto';
-        this.btnAction.style.padding = '6px 14px';
-        this.btnAction.style.borderRadius = '18px';
+        this.btnAction.style.display = 'flex';
+        this.btnAction.style.alignItems = 'center';
+        this.btnAction.style.justifyContent = 'center';
+        this.btnAction.style.gap = '5px';
+
+        if (on) {
+          this.btnAction.innerHTML = `<span style="font-size:13px">✨</span><span style="font-size:12px;font-weight:700">4K ON</span>`;
+          this.btnAction.style.background = 'linear-gradient(135deg, #10b981, #059669)';
+          this.btnAction.style.boxShadow = '0 2px 10px rgba(16, 185, 129, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.25)';
+          this.btnAction.style.border = '1px solid rgba(52, 211, 153, 0.4)';
+          this.btnAction.style.color = '#ffffff';
+        } else {
+          this.btnAction.innerHTML = `<span style="font-size:13px">⚡</span><span style="font-size:12px;font-weight:600">Улучшить</span>`;
+          this.btnAction.style.background = 'linear-gradient(135deg, #334155, #1e293b)';
+          this.btnAction.style.boxShadow = '0 2px 8px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.08)';
+          this.btnAction.style.border = '1px solid rgba(255, 255, 255, 0.14)';
+          this.btnAction.style.color = '#cbd5e1';
+        }
+
+        // Tray expands smoothly
+        if (this.tray) {
+          this.tray.style.maxWidth = '360px';
+          this.tray.style.opacity = '1';
+          this.tray.style.transform = 'translateX(0) scale(1)';
+          this.tray.style.pointerEvents = 'auto';
+          this.tray.style.marginLeft = '5px';
+        }
       }
       this.updateState(on);
     }
@@ -2494,60 +2572,6 @@
       if (this.btnMode) {
         this.btnMode.textContent = MODE_LABELS[mode] || mode;
       }
-
-      if (this.isCollapsed) {
-        this.btnAction.style.width = '100%';
-        this.btnAction.style.height = '100%';
-        this.btnAction.style.padding = '0';
-        this.btnAction.style.borderRadius = '50%';
-        this.btnAction.style.aspectRatio = '1 / 1';
-        this.btnAction.style.display = 'flex';
-        this.btnAction.style.alignItems = 'center';
-        this.btnAction.style.justifyContent = 'center';
-
-        if (isOn) {
-          // Green when upscale ON
-          this.btnAction.innerHTML = `<span style="font-size:16px;line-height:1;display:flex;align-items:center;justify-content:center;">✨</span>`;
-          this.btnAction.style.background = 'linear-gradient(135deg, #10b981, #059669)';
-          this.btnAction.style.boxShadow = '0 4px 14px rgba(16, 185, 129, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.3)';
-          this.btnAction.style.border = '1px solid rgba(52, 211, 153, 0.4)';
-          this.btnAction.style.color = '#ffffff';
-        } else {
-          // Gray when upscale OFF
-          this.btnAction.innerHTML = `<span style="font-size:15px;line-height:1;display:flex;align-items:center;justify-content:center;">⚡</span>`;
-          this.btnAction.style.background = 'linear-gradient(135deg, #334155, #1e293b)';
-          this.btnAction.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.08)';
-          this.btnAction.style.border = '1px solid rgba(255, 255, 255, 0.14)';
-          this.btnAction.style.color = '#cbd5e1';
-        }
-      } else {
-        this.btnAction.style.width = 'auto';
-        this.btnAction.style.height = 'auto';
-        this.btnAction.style.minWidth = 'unset';
-        this.btnAction.style.minHeight = 'unset';
-        this.btnAction.style.maxWidth = 'unset';
-        this.btnAction.style.maxHeight = 'unset';
-        this.btnAction.style.aspectRatio = 'auto';
-        this.btnAction.style.padding = '6px 14px';
-        this.btnAction.style.borderRadius = '18px';
-
-        if (isOn) {
-          // Green when upscale ON
-          this.btnAction.innerHTML = `<span style="font-size:14px">✨</span><span>4K ON</span>`;
-          this.btnAction.style.background = 'linear-gradient(135deg, #10b981, #059669)';
-          this.btnAction.style.boxShadow = '0 4px 14px rgba(16, 185, 129, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.25)';
-          this.btnAction.style.border = '1px solid rgba(52, 211, 153, 0.35)';
-          this.btnAction.style.color = '#ffffff';
-        } else {
-          // Gray when upscale OFF
-          this.btnAction.innerHTML = `<span style="font-size:14px">⚡</span><span>Улучшить</span>`;
-          this.btnAction.style.background = 'linear-gradient(135deg, #334155, #1e293b)';
-          this.btnAction.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.08)';
-          this.btnAction.style.border = '1px solid rgba(255, 255, 255, 0.14)';
-          this.btnAction.style.color = '#cbd5e1';
-        }
-      }
-
       if (this.isMenuOpen) {
         this.renderQuickMenu();
       }
@@ -2606,18 +2630,51 @@
       const updatePos = () => {
         if (!document.contains(this.video)) return;
         const fse = document.fullscreenElement || document.webkitFullscreenElement;
-        if (!fse) {
+
+        if (fse) {
+          // Fullscreen mode: mount inside fullscreen container to stay properly layered
+          if (this.el.parentElement !== fse) {
+            fse.appendChild(this.el);
+          }
+          this.el.style.position = 'absolute';
+          this.el.style.left = '16px';
+          this.el.style.top  = '16px';
+
+          if (!cfg.autoHideUI || this.isHoveringWidget || this.isMenuOpen) {
+            this.el.style.opacity = '1';
+            this.el.style.pointerEvents = 'auto';
+          }
+        } else {
+          // Windowed mode: attached to documentElement
+          if (this.el.parentElement !== document.documentElement) {
+            document.documentElement.appendChild(this.el);
+          }
+          this.el.style.position = 'fixed';
+
           const r = this.video.getBoundingClientRect();
-          if (r.width > 4 && r.height > 4) {
+
+          // Occlusion guards:
+          // 1. Is player scrolled behind top sticky navbar (AnimeLib/Jut.su/YouTube sticky header: ~50-65px)?
+          // 2. Is player scrolled out of viewport (bottom < 80px or top > innerHeight - 40px)?
+          // 3. Is player hidden or collapsed (< 16px)?
+          const isUnderStickyNav = (r.top < 56);
+          const isOutOfView = (r.bottom < 80 || r.top > window.innerHeight - 40 || r.right < 40 || r.left > window.innerWidth - 40);
+          const isTooSmall = (r.width < 16 || r.height < 16);
+
+          if (isUnderStickyNav || isOutOfView || isTooSmall) {
+            this.el.style.opacity = '0';
+            this.el.style.pointerEvents = 'none';
+            if (this.isMenuOpen) {
+              this.closeQuickMenu();
+            }
+          } else {
             this.el.style.left = (r.left + 14) + 'px';
             this.el.style.top  = (r.top  + 14) + 'px';
-            if (!cfg.autoHideUI) {
+
+            if (!cfg.autoHideUI || this.isHoveringWidget || this.isMenuOpen) {
               this.el.style.opacity = '1';
               this.el.style.pointerEvents = 'auto';
             }
-          } else {
-            this.el.style.opacity = '0';
-            this.el.style.pointerEvents = 'none';
           }
         }
         this._trackRaf = requestAnimationFrame(updatePos);

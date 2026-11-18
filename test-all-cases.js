@@ -29,7 +29,7 @@ try {
   const manifest = JSON.parse(manifestRaw);
 
   assert(manifest.manifest_version === 3, 'Manifest is valid MV3', `version ${manifest.manifest_version}`);
-  assert(manifest.version === '3.5.0', 'Version matches 3.5.0', manifest.version);
+  assert(manifest.version === '3.5.1', 'Version matches 3.5.1', manifest.version);
   assert(manifest.options_ui && manifest.options_ui.page === 'options.html', 'Options UI page configured', manifest.options_ui.page);
   assert(manifest.content_scripts && manifest.content_scripts[0].all_frames === true, 'Content script runs in all_frames for iframe support');
 
